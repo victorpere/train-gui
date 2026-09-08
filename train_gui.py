@@ -62,12 +62,6 @@ class TrainController:
         self.speed4_button.grid(row=2, column=4, padx=2)
         self.speed5_button = ttk.Button(control_frame, text="3", command=lambda: self.set_speed(128, self.speed5_button))
         self.speed5_button.grid(row=2, column=5, padx=2)
-        
-        # Status frame
-        status_frame = ttk.LabelFrame(self.root, text="Status", padding=10)
-        status_frame.pack(fill="x", padx=10, pady=5)
-        self.current_status = ttk.Label(status_frame, text="Direction: Stop | PWM: 0")
-        self.current_status.pack()
 
         # # Dashboard frame
         custom_font = tkFont.Font(family="Menlo", size=25)
@@ -104,9 +98,7 @@ class TrainController:
 
     def set_speed(self, speed, button_pressed: Button):
         if self.send_command(speed):
-            self.target_speed.set(speed)  # Store the speed
-            self.current_status.config(text=f"Direction: {'Forward' if self.direction > 0 else 'Reverse'} | Set speed: {self.target_speed}")
-            
+            self.target_speed.set(speed)  # Store the speed           
             # Update button states
             self.reset_buttons()
             button_pressed.config(state="disabled")
