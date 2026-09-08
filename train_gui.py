@@ -1,10 +1,9 @@
+import time
 import tkinter as tk
 from tkinter import ttk
 from tkinter.ttk import Button
 import tkinter.font as tkFont
 import serial
-import csv
-import json
 from threading import Thread
 
 class TrainController:
@@ -20,6 +19,8 @@ class TrainController:
 
         self.actual_speed = tk.IntVar()  # current speed from Arduino
         self.actual_speed.set(0)
+
+        self.reading_serial = False  # Flag to control serial reading thread
         
         # Build GUI
         self.build_ui()
@@ -92,6 +93,11 @@ class TrainController:
             self.connect_button.config(state="disabled")
             self.status_label.config(text="Connected", foreground="green")
             self.message_label.config(text="")
+
+            # Start serial reading thread
+            self.reading_serial = True
+            serial_thread = Thread(target=self.read_serial, daemon=True)
+            serial_thread.start()
         except Exception as e:
             self.connect_button.config(state="normal")
             self.show_message("error", str(e))
@@ -158,6 +164,22 @@ class TrainController:
     def reset_buttons(self):
         for btn in [self.stop_button, self.speed1_button, self.speed2_button, self.speed3_button, self.speed4_button, self.speed5_button]:
             btn.config(state="normal")
+
+    def read_serial(self):
+        """Read serial data from Arduino"""
+        while self.reading_serial and self.ser and self.ser.is_open:
+            try:
+                if self.ser.in_waiting > 0:
+                    byte = self.ser.read(1)
+                    if byte:
+                        self.actual_speed.set(byte[0])
+                        # self.root.after(0, self.update_arduino_status)
+            except Exception as e:
+                self.show_message("error", e)
+                print(f"Serial read error: {e}")
+            
+            time.sleep(0.05)
+
 
 if __name__ == "__main__":
     root = tk.Tk()
