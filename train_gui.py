@@ -36,23 +36,23 @@ class TrainController:
         control_frame.pack(fill="x", padx=10, pady=5)
         
         # Direction buttons
-        self.reverse_button = ttk.Button(control_frame, text="◀ Reverse", command=self.set_reverse, width=10)
+        self.reverse_button = ttk.Button(control_frame, text="◀ REV", command=self.set_reverse, width=10)
         self.reverse_button.grid(row=0, column=0, padx=5)
-        self.forward_button = ttk.Button(control_frame, text="Forward ▶", command=self.set_forward, width=10)
+        self.forward_button = ttk.Button(control_frame, text="FWD ▶", command=self.set_forward, width=10)
         self.forward_button.grid(row=0, column=1, padx=5)
 
         # Preset speed buttons
         self.stop_button = ttk.Button(control_frame, text="Stop", command=lambda: self.set_speed(0, self.stop_button))
         self.stop_button.grid(row=2, column=0, padx=2)
-        self.speed1_button = ttk.Button(control_frame, text="1", command=lambda: self.set_speed(60, self.speed1_button))
+        self.speed1_button = ttk.Button(control_frame, text="Station", command=lambda: self.set_speed(48, self.speed1_button))
         self.speed1_button.grid(row=2, column=1, padx=2)
-        self.speed2_button = ttk.Button(control_frame, text="2", command=lambda: self.set_speed(70, self.speed2_button))
+        self.speed2_button = ttk.Button(control_frame, text="Slow", command=lambda: self.set_speed(70, self.speed2_button))
         self.speed2_button.grid(row=2, column=2, padx=2)
-        self.speed3_button = ttk.Button(control_frame, text="3", command=lambda: self.set_speed(80, self.speed3_button))
+        self.speed3_button = ttk.Button(control_frame, text="1", command=lambda: self.set_speed(80, self.speed3_button))
         self.speed3_button.grid(row=2, column=3, padx=2)
-        self.speed4_button = ttk.Button(control_frame, text="4", command=lambda: self.set_speed(90, self.speed4_button))
+        self.speed4_button = ttk.Button(control_frame, text="2", command=lambda: self.set_speed(96, self.speed4_button))
         self.speed4_button.grid(row=2, column=4, padx=2)
-        self.speed5_button = ttk.Button(control_frame, text="5", command=lambda: self.set_speed(100, self.speed5_button))
+        self.speed5_button = ttk.Button(control_frame, text="3", command=lambda: self.set_speed(128, self.speed5_button))
         self.speed5_button.grid(row=2, column=5, padx=2)
         
         # Status frame
