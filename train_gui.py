@@ -1,5 +1,7 @@
 import tkinter as tk
-from tkinter import ttk, filedialog, messagebox, Button
+from tkinter import ttk
+from tkinter.ttk import Button
+import tkinter.font as tkFont
 import serial
 import csv
 import json
@@ -11,8 +13,13 @@ class TrainController:
         self.root.title("N-Scale Train Controller")
         
         self.ser = None
-        self.current_speed = 0  # Track current speed
         self.direction = 1  # 1 for forward, -1 for backward
+
+        self.target_speed = tk.IntVar()  # selected target speed
+        self.target_speed.set(0)
+
+        self.actual_speed = tk.IntVar()  # current speed from Arduino
+        self.actual_speed.set(0)
         
         # Build GUI
         self.build_ui()
@@ -61,6 +68,17 @@ class TrainController:
         self.current_status = ttk.Label(status_frame, text="Direction: Stop | PWM: 0")
         self.current_status.pack()
 
+        # # Dashboard frame
+        custom_font = tkFont.Font(family="Menlo", size=25)
+        dash_frame = ttk.LabelFrame(self.root, padding = 10)
+        dash_frame.pack(fill="x", padx=10, pady=5)
+        ttk.Label(dash_frame, text="Target speed").grid(row=0, column=0)
+        ttk.Label(dash_frame, text="Actual speed").grid(row=0, column=1)
+        self.target_speed_label = ttk.Label(dash_frame, textvariable=self.target_speed, background="#222", font=custom_font)
+        self.target_speed_label.grid(row=1, column=0, padx=5)
+        self.actual_speed_label = ttk.Label(dash_frame, textvariable=self.actual_speed, background="#222", font=custom_font)
+        self.actual_speed_label.grid(row=1, column=1, padx=5)
+
         # Message frame
         message_frame = ttk.LabelFrame(self.root, text="Messages", padding=10)
         message_frame.pack(fill="x", padx=10, pady=5)
@@ -80,8 +98,8 @@ class TrainController:
 
     def set_speed(self, speed, button_pressed: Button):
         if self.send_command(speed):
-            self.current_speed = speed  # Store the speed
-            self.current_status.config(text=f"Direction: {'Forward' if self.direction > 0 else 'Reverse'} | Set speed: {self.current_speed}")
+            self.target_speed.set(speed)  # Store the speed
+            self.current_status.config(text=f"Direction: {'Forward' if self.direction > 0 else 'Reverse'} | Set speed: {self.target_speed}")
             
             # Update button states
             self.reset_buttons()
@@ -106,24 +124,24 @@ class TrainController:
         if self.direction == 1:
             self.show_message("info", "Already moving forward")
             return  # Already moving forward
-        if self.current_speed != 0:
+        if self.target_speed != 0:
             self.show_message("warning", "Can't change direction while moving")
             return  # Can't change direction while moving
         self.direction = 1
-        self.send_command(self.current_speed)  # Use stored speed
+        self.send_command(self.target_speed)  # Use stored speed
 
     def set_reverse(self):
         if self.direction == -1:
             self.show_message("info", "Already moving reverse")
             return  # Already moving reverse
-        if self.current_speed != 0:
+        if self.target_speed != 0:
             self.show_message("warning", "Can't change direction while moving")
             return  # Can't change direction while moving
         self.direction = -1
-        self.send_command(self.current_speed)  # Use stored speed
+        self.send_command(self.target_speed)  # Use stored speed
 
     def stop(self):
-        self.current_speed = 0
+        self.target_speed.set(0)
         self.send_command(0)
 
     def show_message(self, level, message):
