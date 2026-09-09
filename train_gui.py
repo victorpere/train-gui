@@ -5,6 +5,7 @@ from tkinter.ttk import Button
 import tkinter.font as tkFont
 import serial
 from threading import Thread
+from util import load_data_from_file
 
 class TrainController:
     def __init__(self, root):
@@ -61,19 +62,20 @@ class TrainController:
         self.forward_button = ttk.Button(control_frame, text="FWD ▶", state="disabled", command=self.set_forward)
         self.forward_button.grid(row=0, column=1, padx=2)
 
-        # Preset voltage buttons
-        self.stop_button = ttk.Button(control_frame, text="STOP", command=lambda: self.set_voltage(0, self.stop_button))
-        self.stop_button.grid(row=2, column=0, padx=2)
-        self.level1_button = ttk.Button(control_frame, text="IDLE", command=lambda: self.set_voltage(48, self.level1_button))
-        self.level1_button.grid(row=2, column=1, padx=2)
-        self.level2_button = ttk.Button(control_frame, text="1", command=lambda: self.set_voltage(70, self.level2_button))
-        self.level2_button.grid(row=2, column=2, padx=2)
-        self.level3_button = ttk.Button(control_frame, text="2", command=lambda: self.set_voltage(80, self.level3_button))
-        self.level3_button.grid(row=2, column=3, padx=2)
-        self.level4_button = ttk.Button(control_frame, text="3", command=lambda: self.set_voltage(96, self.level4_button))
-        self.level4_button.grid(row=2, column=4, padx=2)
-        self.level5_button = ttk.Button(control_frame, text="4", command=lambda: self.set_voltage(128, self.level5_button))
-        self.level5_button.grid(row=2, column=5, padx=2)
+        # Voltage control buttons
+        self.control_buttons = []
+        try:
+            buttons_data = load_data_from_file("control_buttons.json")
+            for idx, button in enumerate(buttons_data):
+                voltage = button.get("value", 0)
+                label = button.get("label", str(voltage))
+                btn = ttk.Button(control_frame, text=label, command=lambda v=voltage, b=idx: self.set_voltage(v, self.control_buttons[b]))
+                btn.grid(row=1, column=idx, padx=2)
+                self.control_buttons.append(btn)
+        except FileNotFoundError:
+            print("control_buttons.json not found. Please ensure the file exists.")
+        except Exception as e:
+            print(f"Error loading control_buttons.json: {e}")
 
         # Message frame
         message_frame = ttk.LabelFrame(self.root, text="Messages", padding=10)
@@ -101,26 +103,17 @@ class TrainController:
     def set_voltage(self, voltage, button_pressed: Button):
         self.set_message()
         directional_voltage = voltage * self.direction.get()
-        if self.send_command(directional_voltage):
+        if self.write_serial(directional_voltage):
             self.target_voltage.set(voltage)  # Store the voltage           
             # Update button states
             self.reset_buttons()
             button_pressed.config(state="disabled")
-    
-    def send_command(self, voltage):
-        """Send voltage command to Arduino."""
-        if not self.ser or not self.ser.is_open:
+        else:
             self.set_message("error", "Serial connection not established")
             self.connect_button.config(state="normal")
             self.status_label.config(text="Disconnected", foreground="red")
             self.reset_buttons()
-            return False
         
-        command = int(voltage)  # Negative for reverse
-        
-        self.ser.write(f"{command}\n".encode())
-        return True
-    
     def set_forward(self):
         self.set_message()
         if self.direction.get() == 1:
@@ -157,9 +150,17 @@ class TrainController:
             self.message_label.config(text=message, foreground="black")
 
     def reset_buttons(self):
-        for btn in [self.stop_button, self.level1_button, self.level2_button, self.level3_button, self.level4_button, self.level5_button]:
+        for btn in self.control_buttons:
             btn.config(state="normal")
 
+    def write_serial(self, value):
+        """Send command to Arduino."""
+        if not self.ser or not self.ser.is_open:
+            return False
+        command = int(value)
+        self.ser.write(f"{command}\n".encode())
+        return True
+    
     def read_serial(self):
         """Read serial data from Arduino"""
         while self.reading_serial and self.ser and self.ser.is_open:
