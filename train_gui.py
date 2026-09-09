@@ -3,17 +3,16 @@ import tkinter as tk
 from tkinter import ttk
 from tkinter.ttk import Button
 import tkinter.font as tkFont
-import serial
-from threading import Thread
+from train_model import TrainModel
 from util import load_data_from_file
 
 class TrainController:
-    def __init__(self, root):
+    def __init__(self, root, model=None):
         self.root = root
         self.root.title("N-Scale Train Controller")
-        
-        self.ser = None
-
+        # Model holds serial, state, and background thread
+        self.model = model or TrainModel()
+        self.model.add_listener(self._on_model_event)
         self.direction = tk.IntVar()
         self.direction.set(1)  # 1 for forward, -1 for backward
 
@@ -23,7 +22,6 @@ class TrainController:
         self.actual_voltage = tk.IntVar()  # current voltage from Arduino
         self.actual_voltage.set(0)
 
-        self.reading_serial = False  # Flag to control serial reading thread
         
         # Build GUI
         self.build_ui()
@@ -69,9 +67,11 @@ class TrainController:
             for idx, button in enumerate(buttons_data):
                 voltage = button.get("value", 0)
                 label = button.get("label", str(voltage))
-                btn = ttk.Button(control_frame, text=label, command=lambda v=voltage, b=idx: self.set_voltage(v, self.control_buttons[b]))
+                btn = ttk.Button(control_frame, text=label)
                 btn.grid(row=1, column=idx, padx=2)
+                # append first so callback can reference the exact button
                 self.control_buttons.append(btn)
+                btn.config(command=lambda v=voltage, b=btn: self.set_voltage(v, b))
         except FileNotFoundError:
             print("control_buttons.json not found. Please ensure the file exists.")
         except Exception as e:
@@ -87,29 +87,26 @@ class TrainController:
         self.set_message()
         try:
             port = self.port_var.get()
-            self.ser = serial.Serial(port, 9600, timeout=1)
-            self.connect_button.config(state="disabled")
-            self.status_label.config(text="Connected", foreground="green")
-            self.message_label.config(text="")
-
-            # Start serial reading thread
-            self.reading_serial = True
-            serial_thread = Thread(target=self.read_serial, daemon=True)
-            serial_thread.start()
+            ok, msg = self.model.connect(port)
+            if ok:
+                self.connect_button.config(state="disabled")
+                self.status_label.config(text="Connected", foreground="green")
+                self.message_label.config(text="")
+            else:
+                raise RuntimeError(msg)
         except Exception as e:
             self.connect_button.config(state="normal")
             self.set_message("error", str(e))
 
     def set_voltage(self, voltage, button_pressed: Button):
         self.set_message()
-        directional_voltage = voltage * self.direction.get()
-        if self.write_serial(directional_voltage):
-            self.target_voltage.set(voltage)  # Store the voltage           
-            # Update button states
+        ok, msg = self.model.set_voltage(voltage)
+        if ok:
+            self.target_voltage.set(voltage)
             self.reset_buttons()
             button_pressed.config(state="disabled")
         else:
-            self.set_message("error", "Serial connection not established")
+            self.set_message("error", msg)
             self.connect_button.config(state="normal")
             self.status_label.config(text="Disconnected", foreground="red")
             self.reset_buttons()
@@ -118,10 +115,11 @@ class TrainController:
         self.set_message()
         if self.direction.get() == 1:
             self.set_message("info", "Already moving forward")
-            return  # Already moving forward
-        if self.target_voltage.get() != 0 or self.actual_voltage.get() != 0:
-            self.set_message("warning", "Can't change direction while moving")
-            return  # Can't change direction while moving
+            return
+        ok, msg = self.model.set_direction(1)
+        if not ok:
+            self.set_message("warning", msg)
+            return
         self.direction.set(1)
         self.forward_button.config(state="disabled")
         self.reverse_button.config(state="normal")
@@ -130,10 +128,11 @@ class TrainController:
         self.set_message()
         if self.direction.get() == -1:
             self.set_message("info", "Already moving reverse")
-            return  # Already moving reverse
-        if self.target_voltage.get() != 0 or self.actual_voltage.get() != 0:
-            self.set_message("warning", "Can't change direction while moving")
-            return  # Can't change direction while moving
+            return
+        ok, msg = self.model.set_direction(-1)
+        if not ok:
+            self.set_message("warning", msg)
+            return
         self.direction.set(-1)
         self.reverse_button.config(state="disabled")
         self.forward_button.config(state="normal")
@@ -153,28 +152,28 @@ class TrainController:
         for btn in self.control_buttons:
             btn.config(state="normal")
 
-    def write_serial(self, value):
-        """Send command to Arduino."""
-        if not self.ser or not self.ser.is_open:
-            return False
-        command = int(value)
-        self.ser.write(f"{command}\n".encode())
-        return True
-    
-    def read_serial(self):
-        """Read serial data from Arduino"""
-        while self.reading_serial and self.ser and self.ser.is_open:
-            try:
-                if self.ser.in_waiting > 0:
-                    byte = self.ser.read(1)
-                    if byte:
-                        self.actual_voltage.set(byte[0])
-                        # self.root.after(0, self.update_arduino_status)
-            except Exception as e:
-                self.set_message("error", e)
-                print(f"Serial read error: {e}")
-            
-            time.sleep(0.05)
+    def _on_model_event(self, name, value):
+        # Model events originate from a background thread; schedule UI updates
+        def apply_event():
+            if name == "actual_voltage":
+                self.actual_voltage.set(value)
+            elif name == "target_voltage":
+                self.target_voltage.set(value)
+            elif name == "status":
+                txt = str(value).capitalize()
+                fg = "green" if str(value).lower() == "connected" else "red"
+                self.status_label.config(text=txt, foreground=fg)
+            elif name == "direction":
+                # direction value: 1 or -1
+                self.direction.set(value)
+                if value == 1:
+                    self.forward_button.config(state="disabled")
+                    self.reverse_button.config(state="normal")
+                else:
+                    self.reverse_button.config(state="disabled")
+                    self.forward_button.config(state="normal")
+
+        self.root.after(0, apply_event)
 
 
 if __name__ == "__main__":
