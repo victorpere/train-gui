@@ -4,15 +4,16 @@ from tkinter import ttk
 from tkinter.ttk import Button
 import tkinter.font as tkFont
 from train_model import TrainModel
-from util import load_data_from_file
 
 class TrainController:
-    def __init__(self, root, model=None):
+    def __init__(self, root, model=None, buttons_data=None):
         self.root = root
         self.root.title("N-Scale Train Controller")
         # Model holds serial, state, and background thread
         self.model = model or TrainModel()
         self.model.add_listener(self._on_model_event)
+        # Buttons config is injected rather than loaded inside the GUI
+        self.buttons_data = buttons_data or []
         self.direction = tk.IntVar()
         self.direction.set(1)  # 1 for forward, -1 for backward
 
@@ -60,11 +61,10 @@ class TrainController:
         self.forward_button = ttk.Button(control_frame, text="FWD ▶", state="disabled", command=self.set_forward)
         self.forward_button.grid(row=0, column=1, padx=2)
 
-        # Voltage control buttons
+        # Voltage control buttons (config provided by caller)
         self.control_buttons = []
         try:
-            buttons_data = load_data_from_file("control_buttons.json")
-            for idx, button in enumerate(buttons_data):
+            for idx, button in enumerate(self.buttons_data):
                 voltage = button.get("value", 0)
                 label = button.get("label", str(voltage))
                 btn = ttk.Button(control_frame, text=label)
@@ -72,10 +72,8 @@ class TrainController:
                 # append first so callback can reference the exact button
                 self.control_buttons.append(btn)
                 btn.config(command=lambda v=voltage, b=btn: self.set_voltage(v, b))
-        except FileNotFoundError:
-            print("control_buttons.json not found. Please ensure the file exists.")
         except Exception as e:
-            print(f"Error loading control_buttons.json: {e}")
+            print(f"Error building control buttons: {e}")
 
         # Message frame
         message_frame = ttk.LabelFrame(self.root, text="Messages", padding=10)
@@ -177,6 +175,17 @@ class TrainController:
 
 
 if __name__ == "__main__":
+    # Load configuration outside the GUI and inject it — keeps GUI thin and testable
+    try:
+        from util import load_data_from_file
+        buttons = load_data_from_file("control_buttons.json")
+    except FileNotFoundError:
+        print("control_buttons.json not found. Using no buttons.")
+        buttons = []
+    except Exception as e:
+        print(f"Error loading control_buttons.json: {e}")
+        buttons = []
+
     root = tk.Tk()
-    app = TrainController(root)
+    app = TrainController(root, buttons_data=buttons)
     root.mainloop()
