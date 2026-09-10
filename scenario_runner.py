@@ -90,6 +90,7 @@ class ScenarioRunner:
                     if self._stop_requested:
                         self._notify("scenario_status", "Stopped")
                         self.current_step = None
+                        self.model.set_voltage(0)
                         self._notify("scenario_step", None)
                         return False
                     self._set_current_step(step)
@@ -100,11 +101,13 @@ class ScenarioRunner:
             return True
         except InterruptedError:
             self.current_step = None
+            self.model.set_voltage(0)
             self._notify("scenario_step", None)
             self._notify("scenario_status", "Stopped")
             return False
         except Exception as exc:
             self.current_step = None
+            self.model.set_voltage(0)
             self._notify("scenario_step", None)
             self._notify("scenario_status", f"Error: {exc}")
             self._notify("scenario_error", str(exc))
