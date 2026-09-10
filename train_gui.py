@@ -255,7 +255,7 @@ if __name__ == "__main__":
     # Load configuration outside the GUI and inject it — keeps GUI thin and testable
     try:
         from util import load_data_from_file
-        buttons = load_data_from_file("control_buttons.json")
+        buttons = load_data_from_file("config/control_buttons.json")
     except FileNotFoundError:
         print("control_buttons.json not found. Using no buttons.")
         buttons = []
