@@ -8,7 +8,7 @@ except Exception:
     serial = None  # Allow importing on systems without pyserial for testing
 
 
-class TrackModel:
+class Track:
     """Encapsulates track control logic and serial handling.
 
     Responsibilities:

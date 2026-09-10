@@ -5,7 +5,7 @@ import time
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from scenario_runner import ScenarioRunner
-from track_model import TrackModel
+from track import Track
 from fake_serial import FakeSerial
 
 
@@ -16,8 +16,8 @@ def factory(port):
 
 
 def test_scenario_runner_executes_steps():
-    model = TrackModel(serial_factory=factory)
-    model.connect("/dev/fake")
+    track = Track(serial_factory=factory)
+    track.connect("/dev/fake")
 
     scenario = {
         "name": "demo",
@@ -29,18 +29,18 @@ def test_scenario_runner_executes_steps():
         ],
     }
 
-    runner = ScenarioRunner(scenario, model=model)
+    runner = ScenarioRunner(scenario, track=track)
     runner.run()
 
     assert runner.name == "demo"
-    assert model.direction == 1
-    assert model.target_voltage == 45
+    assert track.direction == 1
+    assert track.target_voltage == 45
     assert runner.current_step is None
 
 
 def test_scenario_runner_waits_for_actual_voltage():
-    model = TrackModel(serial_factory=factory)
-    model.connect("/dev/fake")
+    track = Track(serial_factory=factory)
+    track.connect("/dev/fake")
 
     scenario = {
         "name": "wait-demo",
@@ -50,7 +50,7 @@ def test_scenario_runner_waits_for_actual_voltage():
         ],
     }
 
-    runner = ScenarioRunner(scenario, model=model)
+    runner = ScenarioRunner(scenario, track=track)
 
     def later():
         time.sleep(0.05)
@@ -60,4 +60,4 @@ def test_scenario_runner_waits_for_actual_voltage():
     threading.Thread(target=later, daemon=True).start()
     runner.run()
 
-    assert model.actual_voltage == 11
+    assert track.actual_voltage == 11

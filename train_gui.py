@@ -1,20 +1,19 @@
 import glob
 import os
-import time
 import tkinter as tk
 from tkinter import ttk
 from tkinter.ttk import Button
 import tkinter.font as tkFont
 from scenario_runner import ScenarioRunner
-from track_model import TrackModel
+from track import Track
 
 
 class TrainController:
-    def __init__(self, root, model=None, buttons_data=None):
+    def __init__(self, root, track=None, buttons_data=None):
         self.root = root
         self.root.title("N-Scale Train Controller")
-        self.model = model or TrackModel()
-        self.model.add_listener(self._on_model_event)
+        self.track = track or Track()
+        self.track.add_listener(self._on_track_event)
         self.buttons_data = buttons_data or []
         self.direction = tk.IntVar()
         self.direction.set(1)
@@ -127,7 +126,7 @@ class TrainController:
             self.set_message("error", str(exc))
             return
 
-        self.scenario_runner = ScenarioRunner(data, model=self.model)
+        self.scenario_runner = ScenarioRunner(data, track=self.track)
         self.scenario_runner.add_listener(self._on_scenario_event)
         self.scenario_name.set(data.get("name", selected))
         self.scenario_status.set(f"Loaded {data.get('name', selected)}")
@@ -155,7 +154,7 @@ class TrainController:
         self.set_message()
         try:
             port = self.port_var.get()
-            ok, msg = self.model.connect(port)
+            ok, msg = self.track.connect(port)
             if ok:
                 self.connect_button.config(state="disabled")
                 self.status_label.config(text="Connected", foreground="green")
@@ -168,7 +167,7 @@ class TrainController:
 
     def set_voltage(self, voltage, button_pressed: Button):
         self.set_message()
-        ok, msg = self.model.set_voltage(voltage)
+        ok, msg = self.track.set_voltage(voltage)
         if ok:
             self.target_voltage.set(voltage)
             self.reset_buttons()
@@ -184,7 +183,7 @@ class TrainController:
         if self.direction.get() == 1:
             self.set_message("info", "Already moving forward")
             return
-        ok, msg = self.model.set_direction(1)
+        ok, msg = self.track.set_direction(1)
         if not ok:
             self.set_message("warning", msg)
             return
@@ -197,7 +196,7 @@ class TrainController:
         if self.direction.get() == -1:
             self.set_message("info", "Already moving reverse")
             return
-        ok, msg = self.model.set_direction(-1)
+        ok, msg = self.track.set_direction(-1)
         if not ok:
             self.set_message("warning", msg)
             return
@@ -229,7 +228,7 @@ class TrainController:
 
         self.root.after(0, apply_event)
 
-    def _on_model_event(self, name, value):
+    def _on_track_event(self, name, value):
         def apply_event():
             if name == "actual_voltage":
                 self.actual_voltage.set(value)

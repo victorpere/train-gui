@@ -5,15 +5,15 @@ from threading import Thread
 from typing import TYPE_CHECKING, Callable, List, Optional
 
 if TYPE_CHECKING:
-    from track_model import TrackModel
+    from track import Track
 
 
 class ScenarioRunner:
-    """Execute a JSON-defined scenario against a TrackModel."""
+    """Execute a JSON-defined scenario against a Track."""
 
-    def __init__(self, scenario: Optional[dict] = None, model: Optional["TrackModel"] = None):
+    def __init__(self, scenario: Optional[dict] = None, track: Optional["Track"] = None):
         self.scenario = scenario or {}
-        self.model = model or self._create_default_model()
+        self.track = track or self._create_default_track()
         self.name = str(self.scenario.get("name", "unnamed"))
         self.times = int(self.scenario.get("times", 1))
         self.steps = list(self.scenario.get("steps", []))
@@ -22,9 +22,9 @@ class ScenarioRunner:
         self._thread = None
         self._listeners: List[Callable[[str, object], None]] = []
 
-    def _create_default_model(self):
-        from track_model import TrackModel
-        return TrackModel()
+    def _create_default_track(self):
+        from track import Track
+        return Track()
 
     def add_listener(self, cb: Callable[[str, object], None]):
         self._listeners.append(cb)
@@ -49,22 +49,22 @@ class ScenarioRunner:
         step_name = step.get("step")
 
         if step_name == "direction_set":
-            direction = int(step.get("direction", self.model.direction))
-            ok, msg = self.model.set_direction(direction)
+            direction = int(step.get("direction", self.track.direction))
+            ok, msg = self.track.set_direction(direction)
             if not ok:
                 raise RuntimeError(msg)
             return
 
         if step_name == "voltage_target_set":
             voltage = int(step.get("voltage", 0))
-            ok, msg = self.model.set_voltage(voltage)
+            ok, msg = self.track.set_voltage(voltage)
             if not ok:
                 raise RuntimeError(msg)
             return
 
         if step_name == "voltage_actual_wait":
             target = int(step.get("voltage", 0))
-            while not self._stop_requested and self.model.actual_voltage != target:
+            while not self._stop_requested and self.track.actual_voltage != target:
                 time.sleep(0.05)
             if self._stop_requested:
                 raise InterruptedError("Scenario stopped")
@@ -90,7 +90,7 @@ class ScenarioRunner:
                     if self._stop_requested:
                         self._notify("scenario_status", "Stopped")
                         self.current_step = None
-                        self.model.set_voltage(0)
+                        self.track.set_voltage(0)
                         self._notify("scenario_step", None)
                         return False
                     self._set_current_step(step)
@@ -101,13 +101,13 @@ class ScenarioRunner:
             return True
         except InterruptedError:
             self.current_step = None
-            self.model.set_voltage(0)
+            self.track.set_voltage(0)
             self._notify("scenario_step", None)
             self._notify("scenario_status", "Stopped")
             return False
         except Exception as exc:
             self.current_step = None
-            self.model.set_voltage(0)
+            self.track.set_voltage(0)
             self._notify("scenario_step", None)
             self._notify("scenario_status", f"Error: {exc}")
             self._notify("scenario_error", str(exc))
