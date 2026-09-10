@@ -2,6 +2,8 @@ from block import Block
 from track import Track
 
 class Sensor:
+    """For future use
+    """
 
     def __init__(self, id: int, track: Track, block_f: Block, block_r: Block):
         self.id = id
