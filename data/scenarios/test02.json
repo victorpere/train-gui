@@ -1,0 +1,30 @@
+{
+  "name": "Test 2",
+  "times": 1,
+  "steps": [
+    {
+      "step": "direction_set",
+      "direction": 1
+    },
+    {
+      "step": "voltage_target_set",
+      "voltage": 90
+    },
+    {
+      "step": "voltage_actual_wait",
+      "voltage": 90
+    },
+    {
+      "step": "time_wait",
+      "time": 15000
+    },
+    {
+      "step": "voltage_target_set",
+      "voltage": 0
+    },
+    {
+      "step": "voltage_actual_wait",
+      "voltage": 0
+    }
+  ]
+}
