@@ -112,9 +112,6 @@ class TrainController:
         message_frame.pack(fill="x", padx=10, pady=5)
         self.message_label = ttk.Label(message_frame, text="")
         self.message_label.pack()
-
-        if self.scenario_files:
-            self.load_scenario()
     
     def load_scenario(self):
         selected = self.scenario_combo.get()
