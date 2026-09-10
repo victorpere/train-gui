@@ -1,0 +1,13 @@
+{
+  "id": "T01",
+  "name": "Track 01",
+  "description": "Simple loop",
+  "blocks": [
+    {
+      "id": "B01",
+      "occupied": true
+    }
+  ],
+  "sensors": [],
+  "points": []
+}
