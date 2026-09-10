@@ -1,10 +1,10 @@
 {
-  "id": "T01",
+  "id": 1,
   "name": "Track 01",
   "description": "Simple loop",
   "blocks": [
     {
-      "id": "B01",
+      "id": 1,
       "occupied": true
     }
   ],
