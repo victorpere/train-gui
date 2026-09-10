@@ -6,14 +6,14 @@ from tkinter import ttk
 from tkinter.ttk import Button
 import tkinter.font as tkFont
 from scenario_runner import ScenarioRunner
-from train_model import TrainModel
+from track_model import TrackModel
 
 
 class TrainController:
     def __init__(self, root, model=None, buttons_data=None):
         self.root = root
         self.root.title("N-Scale Train Controller")
-        self.model = model or TrainModel()
+        self.model = model or TrackModel()
         self.model.add_listener(self._on_model_event)
         self.buttons_data = buttons_data or []
         self.direction = tk.IntVar()

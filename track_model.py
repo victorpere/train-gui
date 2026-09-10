@@ -8,8 +8,8 @@ except Exception:
     serial = None  # Allow importing on systems without pyserial for testing
 
 
-class TrainModel:
-    """Encapsulates train control logic and serial handling.
+class TrackModel:
+    """Encapsulates track control logic and serial handling.
 
     Responsibilities:
     - Manage serial connection

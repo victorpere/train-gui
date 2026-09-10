@@ -5,13 +5,13 @@ from threading import Thread
 from typing import TYPE_CHECKING, Callable, List, Optional
 
 if TYPE_CHECKING:
-    from train_model import TrainModel
+    from track_model import TrackModel
 
 
 class ScenarioRunner:
-    """Execute a JSON-defined scenario against a TrainModel."""
+    """Execute a JSON-defined scenario against a TrackModel."""
 
-    def __init__(self, scenario: Optional[dict] = None, model: Optional["TrainModel"] = None):
+    def __init__(self, scenario: Optional[dict] = None, model: Optional["TrackModel"] = None):
         self.scenario = scenario or {}
         self.model = model or self._create_default_model()
         self.name = str(self.scenario.get("name", "unnamed"))
@@ -23,8 +23,8 @@ class ScenarioRunner:
         self._listeners: List[Callable[[str, object], None]] = []
 
     def _create_default_model(self):
-        from train_model import TrainModel
-        return TrainModel()
+        from track_model import TrackModel
+        return TrackModel()
 
     def add_listener(self, cb: Callable[[str, object], None]):
         self._listeners.append(cb)

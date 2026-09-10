@@ -5,7 +5,7 @@ import time
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from scenario_runner import ScenarioRunner
-from train_model import TrainModel
+from track_model import TrackModel
 from fake_serial import FakeSerial
 
 
@@ -16,7 +16,7 @@ def factory(port):
 
 
 def test_scenario_runner_executes_steps():
-    model = TrainModel(serial_factory=factory)
+    model = TrackModel(serial_factory=factory)
     model.connect("/dev/fake")
 
     scenario = {
@@ -39,7 +39,7 @@ def test_scenario_runner_executes_steps():
 
 
 def test_scenario_runner_waits_for_actual_voltage():
-    model = TrainModel(serial_factory=factory)
+    model = TrackModel(serial_factory=factory)
     model.connect("/dev/fake")
 
     scenario = {

@@ -6,7 +6,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 
 import pytest
 
-from train_model import TrainModel
+from track_model import TrackModel
 from fake_serial import FakeSerial
 
 
@@ -20,13 +20,13 @@ def fake_factory():
     return factory
 
 
-def test_train_model_write_and_read(fake_factory):
+def test_track_model_write_and_read(fake_factory):
     events = []
 
     def listener(name, value):
         events.append((name, value))
 
-    model = TrainModel(serial_factory=fake_factory)
+    model = TrackModel(serial_factory=fake_factory)
     model.add_listener(listener)
 
     ok, msg = model.connect("/dev/fake")

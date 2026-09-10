@@ -2,7 +2,7 @@ import threading
 
 
 class FakeSerial:
-    """A minimal, thread-safe fake serial for testing TrainModel."""
+    """A minimal, thread-safe fake serial for testing TrackModel."""
 
     def __init__(self):
         self._in = bytearray()
