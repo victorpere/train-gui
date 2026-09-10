@@ -4,9 +4,9 @@ import time
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from scenario_runner import ScenarioRunner
-from track import Track
-from fake_serial import FakeSerial
+from app.scenario_runner import ScenarioRunner
+from app.track import Track
+from tests.fake_serial import FakeSerial
 
 
 def factory(port):

@@ -6,8 +6,8 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 
 import pytest
 
-from track import Track
-from fake_serial import FakeSerial
+from app.track import Track
+from tests.fake_serial import FakeSerial
 
 
 @pytest.fixture

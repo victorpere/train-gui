@@ -5,7 +5,7 @@ from threading import Thread
 from typing import TYPE_CHECKING, Callable, List, Optional
 
 if TYPE_CHECKING:
-    from track import Track
+    from app.track import Track
 
 
 class ScenarioRunner:
@@ -23,7 +23,7 @@ class ScenarioRunner:
         self._listeners: List[Callable[[str, object], None]] = []
 
     def _create_default_track(self):
-        from track import Track
+        from app.track import Track
         return Track()
 
     def add_listener(self, cb: Callable[[str, object], None]):
