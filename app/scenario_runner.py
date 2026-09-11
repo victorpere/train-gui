@@ -2,10 +2,8 @@ from __future__ import annotations
 
 import time
 from threading import Thread
-from typing import TYPE_CHECKING, Callable, List, Optional
-
-if TYPE_CHECKING:
-    from app.track import Track
+from typing import Callable, List, Optional
+from track import Track
 
 
 class ScenarioRunner:
