@@ -2,10 +2,11 @@ import os
 import sys
 import time
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../app")))
 
 from app.scenario_runner import ScenarioRunner
-from app.track import Track, encode_message
+from app.track import Track
+from app.util import encode_message
 from tests.fake_serial import FakeSerial
 
 
