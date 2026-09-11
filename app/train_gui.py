@@ -167,7 +167,8 @@ class TrainController:
 
     def set_voltage(self, voltage, button_pressed: Button):
         self.set_message()
-        ok, msg = self.track.set_voltage(voltage)
+        directional_voltage = voltage * self.direction.get()
+        ok, msg = self.track.set_voltage(directional_voltage)
         if ok:
             self.target_voltage.set(voltage)
             self.reset_buttons()
@@ -183,10 +184,6 @@ class TrainController:
         if self.direction.get() == 1:
             self.set_message("info", "Already moving forward")
             return
-        ok, msg = self.track.set_direction(1)
-        if not ok:
-            self.set_message("warning", msg)
-            return
         self.direction.set(1)
         self.forward_button.config(state="disabled")
         self.reverse_button.config(state="normal")
@@ -195,10 +192,6 @@ class TrainController:
         self.set_message()
         if self.direction.get() == -1:
             self.set_message("info", "Already moving reverse")
-            return
-        ok, msg = self.track.set_direction(-1)
-        if not ok:
-            self.set_message("warning", msg)
             return
         self.direction.set(-1)
         self.reverse_button.config(state="disabled")
@@ -231,22 +224,13 @@ class TrainController:
     def _on_track_event(self, name, value):
         def apply_event():
             if name == "actual_voltage":
-                self.actual_voltage.set(value)
+                self.actual_voltage.set(abs(value))
             elif name == "target_voltage":
-                self.target_voltage.set(value)
+                self.target_voltage.set(abs(value))
             elif name == "status":
                 txt = str(value).capitalize()
                 fg = "green" if str(value).lower() == "connected" else "red"
                 self.status_label.config(text=txt, foreground=fg)
-            elif name == "direction":
-                self.direction.set(value)
-                self.direction_label.config(text=str(value))
-                if value == 1:
-                    self.forward_button.config(state="disabled")
-                    self.reverse_button.config(state="normal")
-                else:
-                    self.reverse_button.config(state="disabled")
-                    self.forward_button.config(state="normal")
 
         self.root.after(0, apply_event)
 

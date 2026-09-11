@@ -3,10 +3,6 @@
   "times": 1,
   "steps": [
     {
-      "step": "direction_set",
-      "direction": 1
-    },
-    {
       "step": "voltage_target_set",
       "voltage": 90
     },
@@ -27,20 +23,16 @@
       "voltage": 0
     },
     {
-      "step": "direction_set",
-      "direction": -1
-    },
-    {
       "step": "voltage_target_set",
-      "voltage": 90
+      "voltage": -90
     },
     {
       "step": "voltage_actual_wait",
-      "voltage": 90
+      "voltage": -90
     },
     {
       "step": "time_wait",
-      "time": 30000
+      "time": 10000
     },
     {
       "step": "voltage_target_set",

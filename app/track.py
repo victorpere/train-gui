@@ -13,13 +13,12 @@ class Track:
 
     Responsibilities:
     - Manage serial connection
-    - Maintain direction/target/actual state
+    - Maintain target/actual state
     - Run serial reader thread
     - Notify listeners of state changes via callbacks
     """
 
     def __init__(self, serial_factory: Optional[Callable[[str], object]] = None):
-        self.direction = 1
         self.target_voltage = 0
         self.actual_voltage = 0
 
@@ -36,6 +35,12 @@ class Track:
                 self._serial_factory = lambda port: (_ for _ in ()).throw(RuntimeError("pyserial not installed"))
             else:
                 self._serial_factory = lambda port: serial.Serial(port, 9600, timeout=1)
+
+    @property
+    def actual_direction(self):
+        if self.actual_voltage == 0: return 0
+        if self.actual_voltage > 0: return 1
+        return -1
 
     def add_listener(self, cb: Callable[[str, object], None]):
         self._listeners.append(cb)
@@ -65,29 +70,22 @@ class Track:
             pass
         self._notify("status", "disconnected")
 
-    def set_direction(self, dir_value: int) -> Tuple[bool, str]:
-        if self.target_voltage != 0 or self.actual_voltage != 0:
-            return False, "Can't change direction while moving"
-        if dir_value not in (1, -1):
-            return False, "Invalid direction"
-        self.direction = dir_value
-        self._notify("direction", self.direction)
-        return True, ""
-
     def set_voltage(self, voltage: int) -> Tuple[bool, str]:
         if not self._ser or not getattr(self._ser, "is_open", False):
             return False, "Serial connection not established"
+
+        if (voltage > 0 and (self.target_voltage < 0 or self.actual_voltage < 0)) or \
+            (voltage < 0 and (self.target_voltage > 0 or self.actual_voltage > 0)):
+            return False, "Must be stopped before changing directions"
+        
         try:
-            # Apply direction to voltage
-            command = int(voltage * self.direction)
-            
             # Encode message:
             # request_type=1 (Set), device_type=1 (Target voltage), device_id=1 (Track)
             message = encode_message(
                 request_type=1,
                 device_type=1,  # Target voltage
                 device_id=1,    # Track Device ID
-                value=command
+                value=voltage
             )
 
             # for my_byte in message:

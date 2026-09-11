@@ -24,7 +24,6 @@ def test_scenario_runner_executes_steps():
         "name": "demo",
         "times": 1,
         "steps": [
-            {"step": "direction_set", "direction": 1},
             {"step": "voltage_target_set", "voltage": 45},
             {"step": "time_wait", "time": 5},
         ],
@@ -34,7 +33,6 @@ def test_scenario_runner_executes_steps():
     runner.run()
 
     assert runner.name == "demo"
-    assert track.direction == 1
     assert track.target_voltage == 45
     assert runner.current_step is None
 

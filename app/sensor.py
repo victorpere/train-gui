@@ -17,9 +17,9 @@ class Sensor:
         return self._on
 
     def detect_on(self):
-        if self._track.direction == 1 and self._block_f.occupied:
+        if self._track.actual_direction == 1 and self._block_f.occupied:
             raise Exception
-        if self._track.direction == -1 and self._block_r.occupied:
+        if self._track.actual_direction == -1 and self._block_r.occupied:
             raise Exception
         self._on = True
         self._block_f.occupied = True
@@ -27,9 +27,9 @@ class Sensor:
 
     def detect_off(self):
         self._on = False
-        if self._track.direction == 1:
+        if self._track.actual_direction == 1:
             self._block_r.occupied = False
             self._block_f.occupied = True
-        elif self._track.direction == -1:
+        elif self._track.actual_direction == -1:
             self._block_f.occupied = False
             self._block_r.occupied = True

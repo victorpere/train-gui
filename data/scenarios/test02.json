@@ -3,10 +3,6 @@
   "times": 1,
   "steps": [
     {
-      "step": "direction_set",
-      "direction": 1
-    },
-    {
       "step": "voltage_target_set",
       "voltage": 90
     },

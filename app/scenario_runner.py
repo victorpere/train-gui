@@ -46,13 +46,6 @@ class ScenarioRunner:
 
         step_name = step.get("step")
 
-        if step_name == "direction_set":
-            direction = int(step.get("direction", self.track.direction))
-            ok, msg = self.track.set_direction(direction)
-            if not ok:
-                raise RuntimeError(msg)
-            return
-
         if step_name == "voltage_target_set":
             voltage = int(step.get("voltage", 0))
             ok, msg = self.track.set_voltage(voltage)
