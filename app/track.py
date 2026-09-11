@@ -180,14 +180,14 @@ class Track:
             buffer = bytearray()
             while self._reading and self._ser and getattr(self._ser, "is_open", False):
                 try:
-                    if getattr(self._ser, "in_waiting", 0) > 0:
-                        b = self._ser.read(1)
+                    while getattr(self._ser, "in_waiting", 0) >= 3:
+                        b = self._ser.read(3)
                         
                         if b:
                             buffer.extend(b)
                             
                             # When we have 3 bytes, try to decode
-                            if len(buffer) >= 3:
+                            while len(buffer) >= 3:
                                 message_data = bytes(buffer[:3])
                                 decoded = decode_message(message_data)
                                 
