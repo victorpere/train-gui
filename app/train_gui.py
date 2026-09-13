@@ -188,8 +188,6 @@ class TrainController:
             button_pressed.config(state="disabled")
         else:
             self.set_message("error", msg)
-            self.connect_button.config(state="normal")
-            self.status_label.config(text="Disconnected", foreground="red")
             self.reset_buttons()
         
     def set_forward(self):
