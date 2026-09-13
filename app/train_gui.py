@@ -5,13 +5,19 @@ from tkinter import ttk
 from tkinter.ttk import Button
 import tkinter.font as tkFont
 from scenario_runner import ScenarioRunner
-from track import Track
+from railway import Layout, Track, DeviceType
+from communication import Communicator
 
 
 class TrainController:
-    def __init__(self, root, track=None, buttons_data=None):
+    def __init__(self, root, buttons_data=None):
         self.root = root
         self.root.title("N-Scale Train Controller")
+
+        self.communicator = Communicator()
+        self.layout = Layout(self.communicator)
+
+
         self.track = track or Track()
         self.track.add_listener(self._on_track_event)
         self.buttons_data = buttons_data or []
@@ -231,6 +237,15 @@ class TrainController:
                 txt = str(value).capitalize()
                 fg = "green" if str(value).lower() == "connected" else "red"
                 self.status_label.config(text=txt, foreground=fg)
+
+        self.root.after(0, apply_event)
+
+    def _on_layout_event(self, device_type: DeviceType, device_id: int, value: int):
+        def apply_event():
+            if device_type == DeviceType.ACTUAL_VOLTAGE:
+                self.actual_voltage.set(abs(value))
+            elif device_type == DeviceType.TARGET_VOLTAGE:
+                self.target_voltage.set(abs(value))
 
         self.root.after(0, apply_event)
 

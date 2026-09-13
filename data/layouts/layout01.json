@@ -1,11 +1,16 @@
 {
-  "id": 1,
-  "name": "Track 01",
+  "name": "Layout 1",
   "description": "Simple loop",
+  "tracks": [
+    {
+      "id": 1
+    }
+  ],
   "blocks": [
     {
       "id": 1,
-      "occupied": true
+      "occupied": true,
+      "track_id": 1
     }
   ],
   "sensors": [],

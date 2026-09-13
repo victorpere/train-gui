@@ -3,7 +3,7 @@ from __future__ import annotations
 import time
 from threading import Thread
 from typing import Callable, List, Optional
-from track import Track
+from railway import Track
 
 
 class ScenarioRunner:
@@ -21,7 +21,7 @@ class ScenarioRunner:
         self._listeners: List[Callable[[str, object], None]] = []
 
     def _create_default_track(self):
-        from app.track import Track
+        from app.railway import Track
         return Track()
 
     def add_listener(self, cb: Callable[[str, object], None]):

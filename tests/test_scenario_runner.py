@@ -5,7 +5,7 @@ import time
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../app")))
 
 from app.scenario_runner import ScenarioRunner
-from app.track import Track
+from app.railway import Track
 from app.util import encode_message
 from tests.fake_serial import FakeSerial
 
@@ -54,8 +54,8 @@ def test_scenario_runner_waits_for_actual_voltage():
     def later():
         time.sleep(0.05)
         # Send a proper 3-byte encoded message with actual voltage = 11
-        # request_type=1, device_type=0 (actual voltage), device_id=1, value=11
-        message = encode_message(request_type=1, device_type=0, device_id=1, value=11)
+        # message_type=1, device_type=0 (actual voltage), device_id=1, value=11
+        message = encode_message(message_type=1, device_type=0, device_id=1, value=11)
         factory.last.inject_bytes(message)
 
     import threading

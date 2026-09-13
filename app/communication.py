@@ -1,6 +1,6 @@
 import time
 from threading import Thread
-from typing import Callable, List, Optional, Tuple
+from typing import Callable, Optional, Tuple, List
 from util import encode_message, decode_message
 
 try:
@@ -8,20 +8,9 @@ try:
 except Exception:
     serial = None  # Allow importing on systems without pyserial for testing
 
-class Track:
-    """Encapsulates track control logic and serial handling.
 
-    Responsibilities:
-    - Manage serial connection
-    - Maintain target/actual state
-    - Run serial reader thread
-    - Notify listeners of state changes via callbacks
-    """
-
+class Communicator:
     def __init__(self, serial_factory: Optional[Callable[[str], object]] = None):
-        self.target_voltage = 0
-        self.actual_voltage = 0
-
         self._ser = None
         self._reading = False
         self._listeners: List[Callable[[str, object], None]] = []
@@ -35,12 +24,6 @@ class Track:
                 self._serial_factory = lambda port: (_ for _ in ()).throw(RuntimeError("pyserial not installed"))
             else:
                 self._serial_factory = lambda port: serial.Serial(port, 9600, timeout=1)
-
-    @property
-    def actual_direction(self):
-        if self.actual_voltage == 0: return 0
-        if self.actual_voltage > 0: return 1
-        return -1
 
     def add_listener(self, cb: Callable[[str, object], None]):
         self._listeners.append(cb)
@@ -70,30 +53,9 @@ class Track:
             pass
         self._notify("status", "disconnected")
 
-    def set_voltage(self, voltage: int) -> Tuple[bool, str]:
-        if not self._ser or not getattr(self._ser, "is_open", False):
-            return False, "Serial connection not established"
-
-        if (voltage > 0 and (self.target_voltage < 0 or self.actual_voltage < 0)) or \
-            (voltage < 0 and (self.target_voltage > 0 or self.actual_voltage > 0)):
-            return False, "Must be stopped before changing directions"
-        
+    def send(self, message):
         try:
-            # Encode message:
-            # request_type=1 (Set), device_type=1 (Target voltage), device_id=1 (Track)
-            message = encode_message(
-                request_type=1,
-                device_type=1,  # Target voltage
-                device_id=1,    # Track Device ID
-                value=voltage
-            )
-
-            # for my_byte in message:
-            #     print(f'{my_byte:0>8b}', end=' ')
-            # print("\n")
             self._ser.write(message)
-            self.target_voltage = voltage
-            self._notify("target_voltage", self.target_voltage)
             return True, ""
         except Exception as e:
             return False, str(e)
@@ -116,16 +78,16 @@ class Track:
                             # When we have 3 bytes, try to decode
                             while len(buffer) >= 3:
                                 message_data = bytes(buffer[:3])
+
+                                
                                 decoded = decode_message(message_data)
                                 
                                 if decoded is not None:
                                     # Valid message, process it
-                                    device_type = decoded["device_type"]
-                                    value = decoded["value"]
-                                    
-                                    if device_type == 0:  # Actual voltage
-                                        self.actual_voltage = value
-                                        self._notify("actual_voltage", self.actual_voltage)
+                                    self._notify(decoded["message_type"], \
+                                                 decoded["device_type"], \
+                                                 decoded["device_id"], \
+                                                 decoded["value"])
                                     
                                     # Remove processed bytes
                                     del buffer[:3]
