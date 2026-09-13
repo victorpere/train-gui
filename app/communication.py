@@ -54,6 +54,8 @@ class Communicator:
         self._notify("status", "disconnected")
 
     def send(self, message):
+        if not self._ser or not getattr(self._ser, "is_open", False):
+            return False, "Serial connection not established"
         try:
             self._ser.write(message)
             return True, ""
@@ -84,10 +86,7 @@ class Communicator:
                                 
                                 if decoded is not None:
                                     # Valid message, process it
-                                    self._notify(decoded["message_type"], \
-                                                 decoded["device_type"], \
-                                                 decoded["device_id"], \
-                                                 decoded["value"])
+                                    self._notify("message", decoded)
                                     
                                     # Remove processed bytes
                                     del buffer[:3]

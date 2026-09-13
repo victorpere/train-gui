@@ -28,13 +28,16 @@ class LayoutComponent(Protocol):
 
 
 class Layout:
+    """Manages layout components such as track and blocks, and handles communication
+    """
+
     def __init__(self, communicator: Communicator):
         self.communicator = communicator
         self.communicator.add_listener(self._on_communication_event)
         self.components: dict = {}
         self.name = ""
         self.description = ""
-        self._listeners: List[Callable[[DeviceType, int, int], None]] = []
+        self._listeners: List[Callable[[str, int], None]] = []
 
     def load(self, layout_data: dict) -> Tuple[bool, str]:
         """Creates layout and components from a dictionary definition"""
@@ -43,7 +46,6 @@ class Layout:
             self.description = layout_data.get("description", "n/a")
             tracks = layout_data.get("tracks", [])
             blocks = layout_data.get("blocks", [])
-            sensors = layout_data.get("sensors", [])
 
             for track_data in tracks:
                 track = Track(track_data.get("id"), self._on_component_event)
@@ -60,7 +62,7 @@ class Layout:
             print(f"Failed to load layout {str(exc)}")
             return False, str(exc)
 
-    def add_listener(self, cb: Callable[[DeviceType, int, int], None]):
+    def add_listener(self, cb: Callable[[str, int], None]):
         """Add a listener to layout component events"""
         self._listeners.append(cb)
 
@@ -81,33 +83,54 @@ class Layout:
         # print("\n")
 
         ok, msg = self.communicator.send(message)
-        # TODO: handle send message failure
+
+        return ok, msg
 
     def _on_communication_event(self, name, value):
-        """Triggers on receiving an event from communicator"""
-        try:
-            
+        """Triggers on receiving an event from communicator and forwards to target component
+        """
+        if name == "status":
+            for cb in list(self._listeners):
+                cb(name, value)
+        elif name == "message":
+            try:
+                message_type = value.get("message_type")
+                device_type = value.get("device_type")
+                device_id = value.get("device_id")
+                device_value = value.get("value")
 
-            target_component: LayoutComponent = self.components.get(f"{device_type}-{device_id}")
+                target_component: LayoutComponent = self.components.get(f"{device_type}-{device_id}")
 
-            if target_component == None:
-                print(f"device does not exist: {device_type}-{device_id}")
-                return
+                if target_component == None:
+                    print(f"device does not exist: {device_type}-{device_id}")
+                    return
 
-            if target_component.process_message(MessageType(message_type), \
-                                             DeviceType(device_type), \
-                                             value):
-                return
+                if target_component.process_message(MessageType(message_type), \
+                                                DeviceType(device_type), \
+                                                device_value):
+                    return
 
-        except Exception as exc:
-            print(str(exc))
+            except Exception as exc:
+                print(str(exc))
 
-    def _on_component_event(self, device_type, device_id, value):
-        """Notifies listeners of layout component event, such as device value changes"""
+    def _on_component_event(self, device_type: DeviceType, device_id: int, value: int):
+        """Handles component events, such as value changes"""
+        cb_message: Tuple[str, int] = None
+
+        if device_type == DeviceType.TARGET_VOLTAGE:
+            ok, msg = self.send_message(MessageType.SET, DeviceType.TARGET_VOLTAGE, device_id, value)
+            if ok:
+                cb_message = "target_voltage", value
+            else:
+                cb_message = "status", msg
+        elif device_type == DeviceType.ACTUAL_VOLTAGE:
+            cb_message = "actual_voltage", value
+
         for cb in list(self._listeners):
             try:
-                cb(DeviceType(device_type), device_id, value)
+                cb(cb_message[0], cb_message[1])
             except Exception:
+                # TODO: handle exception
                 pass
 
 
@@ -136,16 +159,13 @@ class Track:
         return self._actual_voltage
 
     def set_voltage(self, voltage: int) -> Tuple[bool, str]:
-        if not self._ser or not getattr(self._ser, "is_open", False):
-            return False, "Serial connection not established"
-
         if (voltage > 0 and (self._target_voltage < 0 or self._actual_voltage < 0)) or \
             (voltage < 0 and (self._target_voltage > 0 or self._actual_voltage > 0)):
             return False, "Must be stopped before changing directions"
         
         try:
-            self.communicator.send(MessageType.SET, self.device_type, self.id, voltage)
             self._target_voltage = voltage
+            self._cb(DeviceType.TARGET_VOLTAGE, self.id, voltage)
             return True, ""
         except Exception as e:
             return False, str(e)
@@ -153,11 +173,11 @@ class Track:
     def process_message(self, \
                         message_type: MessageType, \
                         device_type: DeviceType, \
-                        value) -> bool:
+                        value: int) -> bool:
 
         if message_type == MessageType.SET and device_type == DeviceType.ACTUAL_VOLTAGE:
             self._actual_voltage = value
-            self._cb(device_type, self.id, value)
+            self._cb(DeviceType.ACTUAL_VOLTAGE, self.id, value)
             return True
 
         return False
@@ -185,6 +205,7 @@ class Block:
                         message_type: MessageType, \
                         device_type: DeviceType, \
                         value) -> bool:
+        """A block does not receive messages"""
         return False
 
 
@@ -202,29 +223,6 @@ class Sensor:
     @property
     def on(self):
         return self._on
-
-    @on.setter
-    def on(self, value: bool):
-        if self._on == value:
-            return
-
-        if value:
-            if self._track.actual_direction == 1 and self._block_f.occupied:
-                raise Exception
-            if self._track.actual_direction == -1 and self._block_r.occupied:
-                raise Exception
-            self._on = True
-            self._block_f.occupied = True
-            self._block_r.occupied = True
-        else:
-            self._on = False
-            if self._track.actual_direction == 1:
-                self._block_r.occupied = False
-                self._block_f.occupied = True
-            elif self._track.actual_direction == -1:
-                self._block_f.occupied = False
-                self._block_r.occupied = True
-
 
     def detect_on(self):
         if self._track.actual_direction == 1 and self._block_f.occupied:
