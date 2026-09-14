@@ -25,13 +25,18 @@ def crc8(data: bytes) -> int:
             crc &= 0xFF
     return crc
 
-def encode_message(message_type: int, device_type: int, device_id: int, value: int) -> bytes:
+def encode_message(message: dict) -> bytes:
     """Encode a 3-byte message following the protocol.
     
     Byte 0: [message_type:1 | device_type:3 | device_id:4]
     Byte 1: [value:8] (signed, -128 to +127)
     Byte 2: [CRC8]
     """
+    message_type: int = message.get("message_type", 0)
+    device_type: int = message.get("device_type", 0)
+    device_id: int = message.get("device_id", 0)
+    value: int = message.get("value", 0)
+
     # Byte 0: pack bits
     byte0 = (message_type << 7) | (device_type << 4) | (device_id & 0x0F)
     

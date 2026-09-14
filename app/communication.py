@@ -53,11 +53,15 @@ class Communicator:
             pass
         self._notify("status", "disconnected")
 
-    def send(self, message):
+    def send(self, message: dict):
         if not self._ser or not getattr(self._ser, "is_open", False):
             return False, "Serial connection not established"
         try:
-            self._ser.write(message)
+            encoded_message = encode_message(message)
+            # for my_byte in encoded_message:
+            #     print(f'{my_byte:0>8b}', end=' ')
+            # print("\n")
+            self._ser.write(encoded_message)
             return True, ""
         except Exception as e:
             return False, str(e)

@@ -2,7 +2,6 @@
 from typing import Callable, List, Optional, Tuple, Protocol, TypedDict
 from enum import Enum
 from communication import Communicator
-from util import encode_message, decode_message
 
 
 class MessageType(Enum):
@@ -72,15 +71,12 @@ class Layout:
                      device_id: int, \
                      value: int):
         # Encodes and sends message via communicator
-        message = encode_message(
-            message_type=message_type.value,
-            device_type=device_type.value,
-            device_id=device_id,
-            value=value
-        )
-        # for my_byte in message:
-        #     print(f'{my_byte:0>8b}', end=' ')
-        # print("\n")
+        message = {
+            "message_type": message_type.value,
+            "device_type": device_type.value,
+            "device_id": device_id,
+            "value": value
+        }
 
         ok, msg = self.communicator.send(message)
 
