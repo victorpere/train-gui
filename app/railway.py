@@ -124,6 +124,12 @@ class Layout:
                 cb_message = "status", msg
         elif device_type == DeviceType.ACTUAL_VOLTAGE:
             cb_message = "actual_voltage", value
+        elif device_type == DeviceType.BLOCK:
+            cb_message = "block", value
+        elif device_type == DeviceType.SENSOR:
+            cb_message = "sensor", value
+        else:
+            return
 
         for cb in list(self._listeners):
             try:
@@ -197,8 +203,9 @@ class Block:
 
     @occupied.setter
     def occupied(self, value: bool):
-        self._occupied = value
-        self._cb(DeviceType.BLOCK, self.id, int(value))
+        if self._occupied != value:
+            self._occupied = value
+            self._cb(DeviceType.BLOCK, self.id, int(value))
 
     def process_message(self, \
                         message_type: MessageType, \
@@ -209,30 +216,46 @@ class Block:
 
 
 class Sensor:
-    """For future use
+    """Sensor that detects train presence
     """
 
-    def __init__(self, id: int, track: Track, block_f: Block, block_r: Block):
+    def __init__(self, id: int, track: Track, block_f: Block, block_r: Block, \
+                 cb: Callable[[DeviceType, int, int], None]):
         self.id = id
         self._track = track
         self._block_f: Block = block_f
         self._block_r: Block = block_r
+        self._cb = cb
         self._on: bool = False
+        self.ON_THRESHOLD = 1
 
     @property
     def on(self):
         return self._on
 
-    def detect_on(self):
-        if self._track.actual_direction == 1 and self._block_f.occupied:
-            raise Exception
-        if self._track.actual_direction == -1 and self._block_r.occupied:
-            raise Exception
+    def process_message(self, \
+                        message_type: MessageType, \
+                        device_type: DeviceType, \
+                        value) -> bool:
+        if message_type == MessageType.SET and device_type == DeviceType.SENSOR:
+            if value >= self.ON_THRESHOLD:
+                if self._detect_on:
+                    self._cb(DeviceType.SENSOR, self.id, 1)
+            else:
+                if self._detect_off:
+                    self._cb(DeviceType.SENSOR, self.id, 0)
+
+    def _detect_on(self) -> bool:
+        if self._on: 
+            return False
         self._on = True
         self._block_f.occupied = True
         self._block_r.occupied = True
+        return True
 
-    def detect_off(self):
+    def _detect_off(self) -> bool:
+        if not self._on:
+            return False
         self._on = False
         if self._track.actual_direction == 1:
             self._block_r.occupied = False
@@ -240,3 +263,4 @@ class Sensor:
         elif self._track.actual_direction == -1:
             self._block_f.occupied = False
             self._block_r.occupied = True
+        return True
