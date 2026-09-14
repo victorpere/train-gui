@@ -10,6 +10,8 @@ except Exception:
 
 
 class Communicator:
+    """Handles serial communication with Arduino
+    """
     def __init__(self, serial_factory: Optional[Callable[[str], object]] = None):
         self._ser = None
         self._reading = False

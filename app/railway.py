@@ -65,7 +65,7 @@ class Layout:
         """Add a listener to layout component events"""
         self._listeners.append(cb)
 
-    def send_message(self, \
+    def _send_message(self, \
                      message_type: MessageType, \
                      device_type: DeviceType, \
                      device_id: int, \
@@ -83,7 +83,8 @@ class Layout:
         return ok, msg
 
     def _on_communication_event(self, name, value):
-        """Triggers on receiving an event from communicator and forwards to target component
+        """Triggers on receiving an event from communicator and forwards to target component.
+           Status messages are forwarded to listeners.
         """
         if name == "status":
             for cb in list(self._listeners):
@@ -110,11 +111,13 @@ class Layout:
                 print(str(exc))
 
     def _on_component_event(self, device_type: DeviceType, device_id: int, value: int):
-        """Handles component events, such as value changes"""
+        """Handles component events, such as value changes.
+           Notifies listeners.
+        """
         cb_message: Tuple[str, int] = None
 
         if device_type == DeviceType.TARGET_VOLTAGE:
-            ok, msg = self.send_message(MessageType.SET, DeviceType.TARGET_VOLTAGE, device_id, value)
+            ok, msg = self._send_message(MessageType.SET, DeviceType.TARGET_VOLTAGE, device_id, value)
             if ok:
                 cb_message = "target_voltage", value
             else:
