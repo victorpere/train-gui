@@ -4,8 +4,8 @@ import tkinter as tk
 from tkinter import ttk
 from tkinter.ttk import Button
 import tkinter.font as tkFont
-from scenario_runner import ScenarioRunner
-from railway import Layout, Track, DeviceType
+from scenario import ScenarioRunner
+from railway import Layout, Track
 from communication import Communicator
 
 
@@ -37,11 +37,11 @@ class TrainController:
         self.actual_voltage = tk.IntVar()
         self.actual_voltage.set(0)
 
-        # self.scenario_runner = None
-        # self.scenario_files = self._discover_scenarios()
-        # self.scenario_name = tk.StringVar()
-        # self.scenario_status = tk.StringVar(value="No scenario loaded")
-        # self.scenario_step = tk.StringVar(value="")
+        self.scenario_runner = None
+        self.scenario_files = self._discover_scenarios()
+        self.scenario_name = tk.StringVar()
+        self.scenario_status = tk.StringVar(value="No scenario loaded")
+        self.scenario_step = tk.StringVar(value="")
 
         self.build_ui()
 
@@ -96,72 +96,72 @@ class TrainController:
         except Exception as e:
             print(f"Error building control buttons: {e}")
 
-        # scenario_frame = ttk.LabelFrame(self.root, text="Scenario", padding=10)
-        # scenario_frame.pack(fill="x", padx=10, pady=5)
+        scenario_frame = ttk.LabelFrame(self.root, text="Scenario", padding=10)
+        scenario_frame.pack(fill="x", padx=10, pady=5)
 
-        # scenario_names = [os.path.basename(path) for path in self.scenario_files]
-        # self.scenario_combo = ttk.Combobox(scenario_frame, values=scenario_names, state="readonly", width=30)
-        # if scenario_names:
-        #     self.scenario_combo.current(0)
-        # self.scenario_combo.grid(row=0, column=0, padx=5, pady=5)
+        scenario_names = [os.path.basename(path) for path in self.scenario_files]
+        self.scenario_combo = ttk.Combobox(scenario_frame, values=scenario_names, state="readonly", width=30)
+        if scenario_names:
+            self.scenario_combo.current(0)
+        self.scenario_combo.grid(row=0, column=0, padx=5, pady=5)
 
-        # self.load_scenario_button = ttk.Button(scenario_frame, text="Load", command=self.load_scenario)
-        # self.load_scenario_button.grid(row=0, column=1, padx=5)
-        # self.run_scenario_button = ttk.Button(scenario_frame, text="Run", command=self.run_scenario)
-        # self.run_scenario_button.grid(row=0, column=2, padx=5)
-        # self.stop_scenario_button = ttk.Button(scenario_frame, text="Stop", command=self.stop_scenario, state="disabled")
-        # self.stop_scenario_button.grid(row=0, column=3, padx=5)
+        self.load_scenario_button = ttk.Button(scenario_frame, text="Load", command=self.load_scenario)
+        self.load_scenario_button.grid(row=0, column=1, padx=5)
+        self.run_scenario_button = ttk.Button(scenario_frame, text="Run", command=self.run_scenario)
+        self.run_scenario_button.grid(row=0, column=2, padx=5)
+        self.stop_scenario_button = ttk.Button(scenario_frame, text="Stop", command=self.stop_scenario, state="disabled")
+        self.stop_scenario_button.grid(row=0, column=3, padx=5)
 
-        # ttk.Label(scenario_frame, text="Status:").grid(row=1, column=0, sticky="w", padx=5)
-        # self.scenario_status_label = ttk.Label(scenario_frame, textvariable=self.scenario_status, foreground="blue")
-        # self.scenario_status_label.grid(row=1, column=1, columnspan=3, sticky="w", padx=5)
+        ttk.Label(scenario_frame, text="Status:").grid(row=1, column=0, sticky="w", padx=5)
+        self.scenario_status_label = ttk.Label(scenario_frame, textvariable=self.scenario_status, foreground="blue")
+        self.scenario_status_label.grid(row=1, column=1, columnspan=3, sticky="w", padx=5)
 
-        # ttk.Label(scenario_frame, text="Current step:").grid(row=2, column=0, sticky="w", padx=5)
-        # self.scenario_step_label = ttk.Label(scenario_frame, textvariable=self.scenario_step, foreground="darkgreen")
-        # self.scenario_step_label.grid(row=2, column=1, columnspan=3, sticky="w", padx=5)
+        ttk.Label(scenario_frame, text="Current step:").grid(row=2, column=0, sticky="w", padx=5)
+        self.scenario_step_label = ttk.Label(scenario_frame, textvariable=self.scenario_step, foreground="darkgreen")
+        self.scenario_step_label.grid(row=2, column=1, columnspan=3, sticky="w", padx=5)
 
         message_frame = ttk.LabelFrame(self.root, text="Messages", padding=10)
         message_frame.pack(fill="x", padx=10, pady=5)
         self.message_label = ttk.Label(message_frame, text="")
         self.message_label.pack()
     
-    # def load_scenario(self):
-    #     selected = self.scenario_combo.get()
-    #     if not selected:
-    #         self.set_message("warning", "No scenario selected")
-    #         return
+    def load_scenario(self):
+        selected = self.scenario_combo.get()
+        if not selected:
+            self.set_message("warning", "No scenario selected")
+            return
 
-    #     scenario_path = os.path.join("data", "scenarios", selected)
-    #     try:
-    #         from util import load_data_from_file
-    #         data = load_data_from_file(scenario_path)
-    #     except Exception as exc:
-    #         self.set_message("error", str(exc))
-    #         return
+        scenario_path = os.path.join("data", "scenarios", selected)
+        try:
+            from util import load_data_from_file
+            data = load_data_from_file(scenario_path)
+        except Exception as exc:
+            self.set_message("error", str(exc))
+            return
 
-    #     self.scenario_runner = ScenarioRunner(data, track=self.track)
-    #     self.scenario_runner.add_listener(self._on_scenario_event)
-    #     self.scenario_name.set(data.get("name", selected))
-    #     self.scenario_status.set(f"Loaded {data.get('name', selected)}")
-    #     self.scenario_step.set("")
-    #     self.set_message("info", f"Scenario loaded: {data.get('name', selected)}")
+        self.scenario_runner = ScenarioRunner(data, layout=self.layout, track=self.track)
+        self.scenario_runner.add_listener(self._on_scenario_event)
+        self.scenario_name.set(data.get("name", selected))
+        self.scenario_status.set(f"Loaded {data.get('name', selected)}")
+        self.scenario_step.set("")
+        self.set_message("info", f"Scenario loaded: {data.get('name', selected)}")
 
-    # def run_scenario(self):
-    #     if not self.scenario_runner:
-    #         self.set_message("warning", "Load a scenario first")
-    #         return
-    #     if self.scenario_runner.is_running:
-    #         self.set_message("info", "Scenario already running")
-    #         return
+    def run_scenario(self):
+        if not self.scenario_runner:
+            self.set_message("warning", "Load a scenario first")
+            return
+        if self.scenario_runner.is_running:
+            self.set_message("info", "Scenario already running")
+            return
 
-    #     self.stop_scenario_button.config(state="normal")
-    #     self.scenario_runner.start()
+        self.stop_scenario_button.config(state="normal")
+        self.scenario_runner.start()
 
-    # def stop_scenario(self):
-    #     if self.scenario_runner is not None:
-    #         self.scenario_runner.stop()
-    #     self.stop_scenario_button.config(state="disabled")
-    #     self.set_message("warning", "Stopping scenario")
+    def stop_scenario(self):
+        if self.scenario_runner is not None:
+            self.scenario_runner.stop()
+        self.stop_scenario_button.config(state="disabled")
+        self.set_message("warning", "Stopping scenario")
 
     def connect_serial(self):
         self.set_message()

@@ -3,15 +3,16 @@ from __future__ import annotations
 import time
 from threading import Thread
 from typing import Callable, List, Optional
-from railway import Track
+from railway import Track, Layout
 
 
 class ScenarioRunner:
     """Execute a JSON-defined scenario against a Track."""
 
-    def __init__(self, scenario: Optional[dict] = None, track: Optional["Track"] = None):
+    def __init__(self, scenario: dict, layout: Layout, track: Track):
         self.scenario = scenario or {}
-        self.track = track or self._create_default_track()
+        self.layout = layout
+        self.track = track
         self.name = str(self.scenario.get("name", "unnamed"))
         self.times = int(self.scenario.get("times", 1))
         self.steps = list(self.scenario.get("steps", []))
@@ -19,10 +20,6 @@ class ScenarioRunner:
         self._stop_requested = False
         self._thread = None
         self._listeners: List[Callable[[str, object], None]] = []
-
-    def _create_default_track(self):
-        from app.railway import Track
-        return Track()
 
     def add_listener(self, cb: Callable[[str, object], None]):
         self._listeners.append(cb)
