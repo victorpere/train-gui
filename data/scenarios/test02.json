@@ -1,8 +1,24 @@
 {
-    "name": "test 1",
-    "description": "new format",
-    "times": 1,
+    "name": "test 2",
+    "description": "several loops with stops",
+    "times": 10,
     "steps": [
+        {
+            "device_type": "TARGET_VOLTAGE",
+            "device_id": 1,
+            "action": "DEVICE_SET",
+            "value": 40
+        },
+        {
+            "device_type": "ACTUAL_VOLTAGE",
+            "device_id": 1,
+            "action": "DEVICE_WAIT",
+            "value": 40
+        },
+        {
+            "action": "TIME_WAIT",
+            "value": 4000
+        },
         {
             "device_type": "TARGET_VOLTAGE",
             "device_id": 1,
@@ -17,19 +33,23 @@
         },
         {
             "action": "TIME_WAIT",
-            "value": 15000
+            "value": 20000
         },
         {
             "device_type": "TARGET_VOLTAGE",
             "device_id": 1,
             "action": "DEVICE_SET",
-            "value": 0
+            "value": 40
         },
         {
             "device_type": "ACTUAL_VOLTAGE",
             "device_id": 1,
             "action": "DEVICE_WAIT",
-            "value": 0
+            "value": 40
+        },
+        {
+            "action": "TIME_WAIT",
+            "value": 4000
         }
     ]
 }
