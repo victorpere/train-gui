@@ -5,7 +5,7 @@ from tkinter import ttk
 from tkinter.ttk import Button
 import tkinter.font as tkFont
 from scenario import ScenarioRunner
-from railway import Layout, Track
+from railway import Layout, Message, MessageType, DeviceType
 from communication import Communicator
 
 
@@ -14,18 +14,16 @@ class TrainController:
         self.root = root
         self.root.title("N-Scale Train Controller")
 
-        self.communicator = Communicator()
-        self.communicator.add_listener(self._on_event)
+        communicator = Communicator()
+        # self.communicator.add_listener(self._on_event)
 
-        self.layout = Layout(self.communicator)
+        self.layout = Layout(communicator)
         self.layout.add_listener(self._on_event)
         layout_ok, layout_msg = self.layout.load(layout_data)
 
         if not layout_ok:
             print(f"train_gui layout load failed: {layout_msg}")
             return
-
-        self.track: Track = self.layout.components.get("0-1")
 
         self.buttons_data = buttons_data or []
         self.direction = tk.IntVar()
@@ -139,7 +137,7 @@ class TrainController:
             self.set_message("error", str(exc))
             return
 
-        self.scenario_runner = ScenarioRunner(data, layout=self.layout, track=self.track)
+        self.scenario_runner = ScenarioRunner(data, layout=self.layout)
         self.scenario_runner.add_listener(self._on_scenario_event)
         self.scenario_name.set(data.get("name", selected))
         self.scenario_status.set(f"Loaded {data.get('name', selected)}")
@@ -167,7 +165,7 @@ class TrainController:
         self.set_message()
         try:
             port = self.port_var.get()
-            ok, msg = self.communicator.connect(port)
+            ok, msg = self.layout.communicator.connect(port)
             if ok:
                 self.connect_button.config(state="disabled")
                 self.status_label.config(text="Connected", foreground="green")
@@ -181,7 +179,16 @@ class TrainController:
     def set_voltage(self, voltage, button_pressed: Button):
         self.set_message()
         directional_voltage = voltage * self.direction.get()
-        ok, msg = self.track.set_voltage(directional_voltage)
+
+        message: Message = {
+            "message_type": MessageType.SET,
+            "device_type": DeviceType.TARGET_VOLTAGE,
+            "device_id": 1,
+            "value": directional_voltage
+        }
+
+        ok, msg = self.layout.command(message)
+
         if ok:
             self.target_voltage.set(voltage)
             self.reset_buttons()
@@ -232,7 +239,7 @@ class TrainController:
 
         self.root.after(0, apply_event)
 
-    def _on_event(self, name, value):
+    def _on_event(self, name: str, value: object):
         def apply_event():
             if name == "actual_voltage":
                 self.actual_voltage.set(abs(value))

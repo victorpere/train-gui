@@ -1,42 +1,35 @@
 {
-  "name": "Test 1",
-  "times": 1,
-  "steps": [
-    {
-      "step": "voltage_target_set",
-      "voltage": 90
-    },
-    {
-      "step": "voltage_actual_wait",
-      "voltage": 90
-    },
-    {
-      "step": "time_wait",
-      "time": 10000
-    },
-    {
-      "step": "voltage_target_set",
-      "voltage": 0
-    },
-    {
-      "step": "voltage_actual_wait",
-      "voltage": 0
-    },
-    {
-      "step": "voltage_target_set",
-      "voltage": -90
-    },
-    {
-      "step": "voltage_actual_wait",
-      "voltage": -90
-    },
-    {
-      "step": "time_wait",
-      "time": 10000
-    },
-    {
-      "step": "voltage_target_set",
-      "voltage": 0
-    }
-  ]
+    "name": "test 3",
+    "description": "new format",
+    "times": 1,
+    "steps": [
+        {
+            "device_type": "TARGET_VOLTAGE",
+            "device_id": 1,
+            "action": "DEVICE_SET",
+            "value": 100
+        },
+        {
+            "device_type": "ACTUAL_VOLTAGE",
+            "device_id": 1,
+            "action": "DEVICE_WAIT",
+            "value": 100
+        },
+        {
+            "action": "TIME_WAIT",
+            "value": 15000
+        },
+        {
+            "device_type": "TARGET_VOLTAGE",
+            "device_id": 1,
+            "action": "DEVICE_SET",
+            "value": 0
+        },
+        {
+            "device_type": "ACTUAL_VOLTAGE",
+            "device_id": 1,
+            "action": "DEVICE_WAIT",
+            "value": 0
+        }
+    ]
 }

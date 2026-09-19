@@ -1,5 +1,4 @@
-
-from typing import Callable, List, Optional, Tuple, Protocol, TypedDict
+from typing import List, Tuple, Protocol, TypedDict, overload
 from enum import Enum
 from communication import Communicator
 
@@ -18,12 +17,22 @@ class DeviceType(Enum):
     SIGNAL = 5
 
 
+class Message(TypedDict):
+    message_type: MessageType
+    device_type: DeviceType
+    device_id: int
+    value: int
+
+
 class LayoutComponent(Protocol):
-    def process_message(self, \
-                        message_type: MessageType, \
-                        device_type: DeviceType, \
-                        value: int) -> bool:
-        ...
+    def process_message(self, message: Message) -> Tuple[bool, str]: ...
+
+
+class Callback(Protocol):
+    @overload
+    def __call__(self, message: Message) -> Tuple[bool, str]: ...
+    @overload
+    def __call__(self, name: str, value: object): ...
 
 
 class Layout:
@@ -36,7 +45,7 @@ class Layout:
         self.components: dict = {}
         self.name = ""
         self.description = ""
-        self._listeners: List[Callable[[str, int], None]] = []
+        self._listeners: List[Callback] = []
 
     def load(self, layout_data: dict) -> Tuple[bool, str]:
         """Creates layout and components from a dictionary definition"""
@@ -46,14 +55,18 @@ class Layout:
             tracks = layout_data.get("tracks", [])
             blocks = layout_data.get("blocks", [])
 
+            for device_type_name, _ in DeviceType.__members__.items():
+                """Add all device types to components"""
+                self.components[device_type_name] = dict()
+
             for track_data in tracks:
                 track = Track(track_data.get("id"), self._on_component_event)
-                self.components[f"{DeviceType.TARGET_VOLTAGE.value}-{track.id}"] = track
-                self.components[f"{DeviceType.ACTUAL_VOLTAGE.value}-{track.id}"] = track
+                self.components[DeviceType.TARGET_VOLTAGE.name][track.id] = track
+                self.components[DeviceType.ACTUAL_VOLTAGE.name][track.id] = track
 
             for block_data in blocks:
                 block = Block(block_data.get("id"), block_data.get("occupied", False), self._on_component_event)
-                self.components[f"{DeviceType.BLOCK.value}-{block.id}"] = block
+                self.components[DeviceType.BLOCK.name][block.id] = block
 
             return True, ""
 
@@ -61,16 +74,33 @@ class Layout:
             print(f"Failed to load layout {str(exc)}")
             return False, str(exc)
 
-    def add_listener(self, cb: Callable[[str, int], None]):
+    def add_listener(self, cb: Callback):
         """Add a listener to layout component events"""
         self._listeners.append(cb)
+
+    def command(self, message: Message) -> Tuple[bool, str]:
+        """Processes command to component"""
+        target_type_components: dict = self.components.get(message["device_type"].name)
+        target_component: LayoutComponent = target_type_components.get(message["device_id"])
+
+        if target_component == None:
+            print(f"device not foud: {message['device_type'].name}:{message['device_id']}")
+            return False, "Device not found"
+        return target_component.process_message(message)
+
+    def stop_all(self):
+        """Sets target voltage to 0 on all tracks"""
+        target_voltage_devices: dict = self.components.get(DeviceType.TARGET_VOLTAGE.name)
+        for target_voltage_device in target_voltage_devices.values():
+            track: Track = target_voltage_device
+            ok, msg = track.set_voltage(0)
 
     def _send_message(self, \
                      message_type: MessageType, \
                      device_type: DeviceType, \
                      device_id: int, \
                      value: int):
-        # Encodes and sends message via communicator
+        """Sends message via communicator"""
         message = {
             "message_type": message_type.value,
             "device_type": device_type.value,
@@ -79,16 +109,17 @@ class Layout:
         }
 
         ok, msg = self.communicator.send(message)
-
         return ok, msg
 
-    def _on_communication_event(self, name, value):
+    # TODO: return type
+    def _on_communication_event(self, name: str, value):
         """Triggers on receiving an event from communicator and forwards to target component.
            Status messages are forwarded to listeners.
         """
+        print(f"_on_communication_event name: {name} value: {value}")
         if name == "status":
             for cb in list(self._listeners):
-                cb(name, value)
+                cb(name, str(value))
         elif name == "message":
             try:
                 message_type = value.get("message_type")
@@ -96,54 +127,60 @@ class Layout:
                 device_id = value.get("device_id")
                 device_value = value.get("value")
 
-                target_component: LayoutComponent = self.components.get(f"{device_type}-{device_id}")
+                message: Message = {
+                    "message_type": MessageType(message_type),
+                    "device_type": DeviceType(device_type),
+                    "device_id": device_id,
+                    "value": device_value
+                }
 
-                if target_component == None:
-                    print(f"device does not exist: {device_type}-{device_id}")
-                    return
-
-                if target_component.process_message(MessageType(message_type), \
-                                                DeviceType(device_type), \
-                                                device_value):
-                    return
+                ok, msg = self.command(message)
 
             except Exception as exc:
+                # TODO: handle exception
+                print("Layout._on_communication_event exception:")
                 print(str(exc))
 
-    def _on_component_event(self, device_type: DeviceType, device_id: int, value: int):
+    def _on_component_event(self, message: Message) -> Tuple[bool, str]:
         """Handles component events, such as value changes.
            Notifies listeners.
         """
-        cb_message: Tuple[str, int] = None
+        print(f"_on_component_event message received: {message}")
+        cb_message: Tuple[str, object] = None
 
-        if device_type == DeviceType.TARGET_VOLTAGE:
-            ok, msg = self._send_message(MessageType.SET, DeviceType.TARGET_VOLTAGE, device_id, value)
+        if message["device_type"] == DeviceType.TARGET_VOLTAGE and message["message_type"] == MessageType.SET:
+            print(f"sending message to communicator: {message['value']}")
+            ok, msg = self._send_message(MessageType.SET, DeviceType.TARGET_VOLTAGE, message["device_id"], message["value"])
+            print(f"response from communicator: {ok}:{msg}")
             if ok:
-                cb_message = "target_voltage", value
+                cb_message = "target_voltage", message["value"]
             else:
-                cb_message = "status", msg
-        elif device_type == DeviceType.ACTUAL_VOLTAGE:
-            cb_message = "actual_voltage", value
-        elif device_type == DeviceType.BLOCK:
-            cb_message = "block", value
-        elif device_type == DeviceType.SENSOR:
-            cb_message = "sensor", value
+                return False, msg
+        elif message["device_type"] == DeviceType.ACTUAL_VOLTAGE:
+            cb_message = "actual_voltage", message["value"]
+        elif message["device_type"] == DeviceType.BLOCK:
+            cb_message = "block", message["value"]
+        elif message["device_type"] == DeviceType.SENSOR:
+            cb_message = "sensor", message["value"]
         else:
-            return
+            return False, "Unknown device"
 
         for cb in list(self._listeners):
             try:
                 cb(cb_message[0], cb_message[1])
-            except Exception:
+            except Exception as exc:
                 # TODO: handle exception
-                pass
+                print("Layout._on_component_event exception:")
+                print(str(exc))
+
+        return True, ""
 
 
 class Track:
     """Encapsulates track voltage control.
     """
 
-    def __init__(self, id: int, cb: Callable[[DeviceType, int, int], None]):
+    def __init__(self, id: int, cb: Callback):
         self.id = id
         self._target_voltage = 0
         self._actual_voltage = 0
@@ -170,29 +207,36 @@ class Track:
         
         try:
             self._target_voltage = voltage
-            self._cb(DeviceType.TARGET_VOLTAGE, self.id, voltage)
-            return True, ""
+            message: Message = {
+                "message_type": MessageType.SET,
+                "device_type": DeviceType.TARGET_VOLTAGE,
+                "device_id": self.id,
+                "value": self._target_voltage
+            }
+            ok, msg = self._cb(message)
+            return ok, msg
         except Exception as e:
             return False, str(e)
 
-    def process_message(self, \
-                        message_type: MessageType, \
-                        device_type: DeviceType, \
-                        value: int) -> bool:
+    def process_message(self, message: Message) -> Tuple[bool, str]:
+        if message["message_type"] == MessageType.SET and message["device_type"] == DeviceType.ACTUAL_VOLTAGE:
+            self._actual_voltage = message["value"]
+            return self._cb(message)
 
-        if message_type == MessageType.SET and device_type == DeviceType.ACTUAL_VOLTAGE:
-            self._actual_voltage = value
-            self._cb(DeviceType.ACTUAL_VOLTAGE, self.id, value)
-            return True
+        if message["message_type"] == MessageType.SET and message["device_type"] == DeviceType.TARGET_VOLTAGE:
+            return self.set_voltage(message["value"])
 
-        return False
+        if message["message_type"] == MessageType.QUERY and message["device_type"] == DeviceType.ACTUAL_VOLTAGE:
+            return True, str(self._actual_voltage)
+
+        return False, "Unknown message"
 
 
 class Block:
     """A block that is either occupied or not occupied
     """
 
-    def __init__(self, id: int, occupied: bool, cb: Callable[[DeviceType, int, int], None]):
+    def __init__(self, id: int, occupied: bool, cb: Callback):
         self.id = id
         self._occupied = occupied
         self._cb = cb
@@ -207,12 +251,11 @@ class Block:
             self._occupied = value
             self._cb(DeviceType.BLOCK, self.id, int(value))
 
-    def process_message(self, \
-                        message_type: MessageType, \
-                        device_type: DeviceType, \
-                        value) -> bool:
-        """A block does not receive messages"""
-        return False
+    def process_message(self, message: Message) -> Tuple[bool, str]:
+        if message["message_type"] == MessageType.QUERY and message["device_type"] == DeviceType.BLOCK:
+            self._cb(DeviceType.BLOCK, self.id, int(self.occupied))
+            return True, ""
+        return False, "Unknown message"
 
 
 class Sensor:
@@ -220,7 +263,7 @@ class Sensor:
     """
 
     def __init__(self, id: int, track: Track, block_f: Block, block_r: Block, \
-                 cb: Callable[[DeviceType, int, int], None]):
+                 cb: Callback):
         self.id = id
         self._track = track
         self._block_f: Block = block_f

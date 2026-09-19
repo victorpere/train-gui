@@ -4,11 +4,11 @@ import time
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../app")))
 
-from app.communication import Communicator
-from app.scenario import ScenarioRunner
-from app.railway import Track, Layout
-from app.util import encode_message
-from tests.fake_serial import FakeSerial
+from communication import Communicator
+from scenario import ScenarioRunner
+from railway import Layout, DeviceType
+from util import encode_message
+from fake_serial import FakeSerial
 
 
 def factory(port):
@@ -19,34 +19,38 @@ def factory(port):
 
 def test_scenario_runner_executes_steps():
     layout_data = {
-            "name": "test layout",
-            "description": "simple test loop",
-            "tracks": [
-                {
-                    "id": 1
-                }
-            ]
-        }
+        "name": "test layout",
+        "description": "simple test loop",
+        "tracks": [
+            {
+                "id": 1
+            }
+        ]
+    }
     
     communicator = Communicator(serial_factory=factory)
     layout = Layout(communicator)
     layout.load(layout_data)
-    track = layout.components.get("0-1")
+    track = layout.components[DeviceType.TARGET_VOLTAGE.name][1]
     communicator.connect("/dev/fake")
 
     scenario = {
         "name": "demo",
         "times": 1,
         "steps": [
-            {"step": "voltage_target_set", "voltage": 45},
-            {"step": "time_wait", "time": 5},
-        ],
+            {
+                "device_type": "TARGET_VOLTAGE",
+                "device_id": 1,
+                "action": "DEVICE_SET",
+                "value": 45
+            }
+        ]
     }
 
-    runner = ScenarioRunner(scenario, layout, track)
+    runner = ScenarioRunner(scenario, layout)
     runner.run()
 
-    assert runner.name == "demo"
+    assert runner.scenario["name"] == "demo"
     assert track.target_voltage == 45
     assert runner.current_step is None
 
@@ -65,18 +69,23 @@ def test_scenario_runner_waits_for_actual_voltage():
     communicator = Communicator(serial_factory=factory)
     layout = Layout(communicator)
     layout.load(layout_data)
-    track = layout.components.get("0-1")
+    track = layout.components[DeviceType.TARGET_VOLTAGE.name][1]
     communicator.connect("/dev/fake")
 
     scenario = {
         "name": "wait-demo",
         "times": 1,
         "steps": [
-            {"step": "voltage_actual_wait", "voltage": 11},
+            {
+                "device_type": "ACTUAL_VOLTAGE",
+                "device_id": 1,
+                "action": "DEVICE_WAIT",
+                "value": 11
+            }
         ],
     }
 
-    runner = ScenarioRunner(scenario, layout, track)
+    runner = ScenarioRunner(scenario, layout)
 
     def later():
         time.sleep(0.05)

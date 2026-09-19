@@ -2,21 +2,40 @@ from __future__ import annotations
 
 import time
 from threading import Thread
-from typing import Callable, List, Optional
-from railway import Track, Layout
+from typing import Callable, List, TypedDict, NotRequired, cast
+from enum import Enum
+from railway import Layout, DeviceType, MessageType, Message
+
+
+class ScenarioAction(Enum):
+    DEVICE_WAIT = 0
+    DEVICE_SET = 1
+    TIME_WAIT = 2
+
+
+class ScenarioStep(TypedDict):
+    action: str
+    device_type: NotRequired[str]
+    device_id: NotRequired[int]
+    value: int
+
+
+class Scenario(TypedDict):
+    name: str
+    description: str
+    times: int
+    steps: List[ScenarioStep]
 
 
 class ScenarioRunner:
     """Execute a JSON-defined scenario against a Track."""
 
-    def __init__(self, scenario: dict, layout: Layout, track: Track):
-        self.scenario = scenario or {}
+    def __init__(self, scenario: dict, layout: Layout):
+        self.scenario: Scenario = cast(Scenario, scenario)
+        # TODO: scenario validation
+
         self.layout = layout
-        self.track = track
-        self.name = str(self.scenario.get("name", "unnamed"))
-        self.times = int(self.scenario.get("times", 1))
-        self.steps = list(self.scenario.get("steps", []))
-        self.current_step = None
+        self.current_step: ScenarioStep = None
         self._stop_requested = False
         self._thread = None
         self._listeners: List[Callable[[str, object], None]] = []
@@ -31,35 +50,56 @@ class ScenarioRunner:
             except Exception:
                 pass
 
-    def _set_current_step(self, step: dict):
+    def _stop(self):
+        self.current_step = None
+        self.layout.stop_all()
+        self._notify("scenario_status", "Stopped")
+        self._notify("scenario_step", None)
+
+    def _set_current_step(self, step: ScenarioStep):
         self.current_step = step
-        step_name = step.get("step", "") if isinstance(step, dict) else str(step)
+        step_name = f"{step.get('action')}:{step.get('device_type', '')}:{step.get('device_id', '')}:{step.get('value')}"
         self._notify("scenario_step", step_name)
         self._notify("scenario_status", f"Running {step_name}")
 
-    def _run_step(self, step: dict):
-        if not isinstance(step, dict):
-            raise ValueError(f"Invalid step definition: {step!r}")
-
-        step_name = step.get("step")
-
-        if step_name == "voltage_target_set":
-            voltage = int(step.get("voltage", 0))
-            ok, msg = self.track.set_voltage(voltage)
+    def _run_step(self, step: ScenarioStep):
+        if step["action"] == ScenarioAction.DEVICE_SET.name:
+            message: Message = {
+                "message_type": MessageType.SET,
+                "device_type": DeviceType[step["device_type"]],
+                "device_id": step["device_id"],
+                "value": step["value"]
+            }
+            ok, msg = self.layout.command(message)
             if not ok:
+                print(f"scenario._run_step error: {msg}")
                 raise RuntimeError(msg)
             return
 
-        if step_name == "voltage_actual_wait":
-            target = int(step.get("voltage", 0))
-            while not self._stop_requested and self.track.actual_voltage != target:
-                time.sleep(0.05)
+        if step["action"] == ScenarioAction.DEVICE_WAIT.name:
+            message: Message = {
+                "message_type": MessageType.QUERY,
+                "device_type": DeviceType[step["device_type"]],
+                "device_id": step["device_id"],
+                "value": 0
+            }
+            target_value = step["value"]
+            target_reached = False
+            while not self._stop_requested and not target_reached:
+                ok, msg = self.layout.command(message)
+                if not ok:
+                    raise Exception(msg)
+                actual_value = int(msg)
+                if actual_value == target_value:
+                    target_reached = True
+                else:
+                    time.sleep(0.05)
             if self._stop_requested:
                 raise InterruptedError("Scenario stopped")
             return
 
-        if step_name == "time_wait":
-            wait_ms = int(step.get("time", 0))
+        if step["action"] == ScenarioAction.TIME_WAIT.name:
+            wait_ms = step["value"]
             end = time.monotonic() + (wait_ms / 1000.0)
             while not self._stop_requested and time.monotonic() < end:
                 time.sleep(0.05)
@@ -67,37 +107,32 @@ class ScenarioRunner:
                 raise InterruptedError("Scenario stopped")
             return
 
-        raise ValueError(f"Unsupported step: {step_name!r}")
+        print("Unsupported step")
+        raise ValueError(f"Unsupported step")
 
     def run(self) -> bool:
         """Execute the scenario synchronously."""
         self._stop_requested = False
         try:
-            for _ in range(self.times):
-                for step in self.steps:
+            for _ in range(self.scenario.get("times")):
+                for step in self.scenario.get("steps"):
+                    print("scenario.run step start")
                     if self._stop_requested:
-                        self._notify("scenario_status", "Stopped")
-                        self.current_step = None
-                        self.track.set_voltage(0)
-                        self._notify("scenario_step", None)
+                        self.stop()
                         return False
                     self._set_current_step(step)
                     self._run_step(step)
+                    print(f"scenario.run step finish")
             self.current_step = None
             self._notify("scenario_step", None)
-            self._notify("scenario_status", f"Completed {self.name}")
+            self._notify("scenario_status", f"Completed {self.scenario['name']}")
             return True
         except InterruptedError:
-            self.current_step = None
-            self.track.set_voltage(0)
-            self._notify("scenario_step", None)
-            self._notify("scenario_status", "Stopped")
+            self.stop()
             return False
         except Exception as exc:
-            self.current_step = None
-            self.track.set_voltage(0)
-            self._notify("scenario_step", None)
-            self._notify("scenario_status", f"Error: {exc}")
+            print(f"scenario.run exception: {str(exc)}")
+            self.stop()
             self._notify("scenario_error", str(exc))
             return False
 

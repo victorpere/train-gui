@@ -6,10 +6,10 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../a
 
 import pytest
 
-from app.communication import Communicator
-from app.railway import Track, Layout
-from app.util import encode_message, decode_message
-from tests.fake_serial import FakeSerial
+from communication import Communicator
+from railway import Layout, DeviceType, Message, MessageType
+from util import encode_message, decode_message
+from fake_serial import FakeSerial
 
 
 @pytest.fixture
@@ -43,12 +43,19 @@ def test_track_write_and_read(fake_factory):
     layout.load(layout_data)
     layout.add_listener(listener)
 
-    track = layout.components.get("0-1")
+    track = layout.components[DeviceType.TARGET_VOLTAGE.name][1]
 
     ok, msg = layout.communicator.connect("/dev/fake")
     assert ok, f"Connect failed: {msg}"
 
-    ok, msg = track.set_voltage(42)
+    message: Message = {
+        "message_type": MessageType.SET,
+        "device_type": DeviceType.TARGET_VOLTAGE,
+        "device_id": 1,
+        "value": 42
+    }
+
+    ok, msg = layout.command(message)
     assert ok, f"Set voltage failed: {msg}"
 
     # allow background thread to process
