@@ -118,7 +118,7 @@ class ScenarioRunner:
                 for step in self.scenario.get("steps"):
                     print("scenario.run step start")
                     if self._stop_requested:
-                        self.stop()
+                        self._stop()
                         return False
                     self._set_current_step(step)
                     self._run_step(step)
@@ -128,11 +128,11 @@ class ScenarioRunner:
             self._notify("scenario_status", f"Completed {self.scenario['name']}")
             return True
         except InterruptedError:
-            self.stop()
+            self._stop()
             return False
         except Exception as exc:
             print(f"scenario.run exception: {str(exc)}")
-            self.stop()
+            self._stop()
             self._notify("scenario_error", str(exc))
             return False
 
