@@ -124,6 +124,7 @@ class ScenarioRunner:
                     self._run_step(step)
                     print(f"scenario.run step finish")
             self.current_step = None
+            self._stop()
             self._notify("scenario_step", None)
             self._notify("scenario_status", f"Completed {self.scenario['name']}")
             return True
