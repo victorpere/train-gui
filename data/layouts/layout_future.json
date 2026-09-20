@@ -1,0 +1,30 @@
+{
+  "name": "Layout 1",
+  "description": "New format",
+  "components": [
+    {
+        "component_type": "TRACK",
+        "id": 1,
+        "properties": [
+            {
+                "name": "TARGET_VOLTAGE",
+                "value": 0
+            },
+            {
+                "name": "ACTUAL_VOLTAGE",
+                "value": 0
+            }
+        ]
+    },
+    {
+        "component_type": "BLOCK",
+        "id": 1,
+        "property": [
+            {
+                "name": "BLOCK_OCCUPIED",
+                "value": 1
+            }
+        ]
+    }
+  ]
+}
