@@ -52,6 +52,8 @@ class Layout:
         try:
             self.name = layout_data.get("name", "n/a")
             self.description = layout_data.get("description", "n/a")
+            self.length: float = layout_data.get("length", 0)
+            self.scale: float = layout_data.get("scale", 0)
             tracks = layout_data.get("tracks", [])
             blocks = layout_data.get("blocks", [])
             sensors = layout_data.get("sensors", [])
@@ -124,7 +126,7 @@ class Layout:
         """Triggers on receiving an event from communicator and forwards to target component.
            Status messages are forwarded to listeners.
         """
-        print(f"_on_communication_event name: {name} value: {value}")
+        # print(f"_on_communication_event name: {name} value: {value}")
         if name == "status":
             for cb in list(self._listeners):
                 cb(name, str(value))
@@ -153,7 +155,7 @@ class Layout:
         """Handles component events, such as value changes.
            Notifies listeners.
         """
-        print(f"_on_component_event message received: {message}")
+        # print(f"_on_component_event message received: {message}")
         cb_message: Tuple[str, object] = None
 
         if message["device_type"] == DeviceType.TARGET_VOLTAGE and message["message_type"] == MessageType.SET:
@@ -290,7 +292,6 @@ class Sensor:
         return self._on
 
     def process_message(self, message: Message) -> Tuple[bool, str]:
-        print(f"sensor.process_message: {message}")
         if message["message_type"] == MessageType.SET and message["device_type"] == DeviceType.SENSOR:
             if message["value"] >= self.ON_THRESHOLD:
                 if self._detect_on():
