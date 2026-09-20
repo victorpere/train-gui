@@ -299,6 +299,8 @@ class Sensor:
             else:
                 if self._detect_off():
                     return self._cb(message)
+        elif message["message_type"] == MessageType.QUERY and message["device_type"] == DeviceType.SENSOR:
+            return True, int(self.on)
 
     def _detect_on(self) -> bool:
         if self._on: 
