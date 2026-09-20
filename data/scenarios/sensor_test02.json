@@ -7,13 +7,23 @@
             "action": "DEVICE_SET",
             "device_type": "TARGET_VOLTAGE",
             "device_id": 1,
-            "value": -83
+            "value": -120
         },
         {
             "action": "DEVICE_WAIT",
             "device_type": "SENSOR",
             "device_id": 1,
             "value": 1
+        },
+        {
+            "action": "TIME_WAIT",
+            "value": 10000
+        },
+        {
+            "action": "DEVICE_SET",
+            "device_type": "TARGET_VOLTAGE",
+            "device_id": 1,
+            "value": -80
         },
         {
             "action": "DEVICE_WAIT",
@@ -36,16 +46,6 @@
         {
             "action": "TIME_WAIT",
             "value": 4000
-        },
-        {
-            "action": "DEVICE_SET",
-            "device_type": "TARGET_VOLTAGE",
-            "device_id": 1,
-            "value": -120
-        },
-        {
-            "action": "TIME_WAIT",
-            "value": 15500
         }
     ]
 }
