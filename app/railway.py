@@ -289,10 +289,10 @@ class Sensor:
         if message["message_type"] == MessageType.SET and message["device_type"] == DeviceType.SENSOR:
             if message["value"] >= self.ON_THRESHOLD:
                 if self._detect_on():
-                    self._cb(message)
+                    return self._cb(message)
             else:
                 if self._detect_off():
-                    self._cb(message)
+                    return self._cb(message)
 
     def _detect_on(self) -> bool:
         if self._on: 
