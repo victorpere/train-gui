@@ -1,0 +1,35 @@
+{
+    "name": "sensor test 1",
+    "description": "test waiting for sensor",
+    "times": 10,
+    "steps": [
+        {
+            "device_type": "TARGET_VOLTAGE",
+            "device_id": 1,
+            "action": "DEVICE_SET",
+            "value": -87
+        },
+        {
+            "device_type": "SENSOR",
+            "device_id": 1,
+            "action": "DEVICE_WAIT",
+            "value": 1
+        },
+        {
+            "device_type":"TARGET_VOLTAGE",
+            "device_id": 1,
+            "action": "DEVICE_SET",
+            "value": -40
+        },
+        {
+            "device_type": "ACTUAL_VOLTAGE",
+            "device_id": 1,
+            "action": "DEVICE_WAIT",
+            "value": -40
+        },
+        {
+            "action": "TIME_WAIT",
+            "value": 4000
+        }
+    ]
+}
