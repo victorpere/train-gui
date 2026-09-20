@@ -35,6 +35,9 @@ class TrainController:
         self.actual_voltage = tk.IntVar()
         self.actual_voltage.set(0)
 
+        self.sensor_message = tk.StringVar()
+        self.sensor_message.set("")
+
         self.scenario_runner = None
         self.scenario_files = self._discover_scenarios()
         self.scenario_name = tk.StringVar()
@@ -73,6 +76,8 @@ class TrainController:
         self.target_voltage_label.grid(row=1, column=1, padx=5)
         self.actual_voltage_label = ttk.Label(dash_frame, textvariable=self.actual_voltage, font=dash_font, width=3, justify=tk.RIGHT)
         self.actual_voltage_label.grid(row=1, column=2, padx=5)
+        self.sensor_label = ttk.Label(dash_frame, textvariable=self.sensor_message, font=dash_font, foreground="red")
+        self.sensor_label.grid(row=1, column=3, padx=5)
 
         control_frame = ttk.LabelFrame(self.root, text="Control", padding=10)
         control_frame.pack(fill="x", padx=10, pady=5)
@@ -251,12 +256,10 @@ class TrainController:
                 self.status_label.config(text=txt, foreground=fg)
             elif name == "sensor":
                 if value == 1:
-                    self.set_message("info", "TRAIN DETECTED")
+                    self.sensor_message.set("TRAIN DETECTED")
                     def clear_message():
-                        self.set_message("", "")
+                        self.sensor_message.set("")
                     self.root.after(2000, clear_message)
-                # else:
-                #     self.set_message("info", "SENSOR OFF")
 
         self.root.after(0, apply_event)
 
