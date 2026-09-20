@@ -1,6 +1,6 @@
 {
-    "name": "sensor test 1",
-    "description": "test waiting for sensor",
+    "name": "sensor test 2",
+    "description": "stop every two laps",
     "times": 10,
     "steps": [
         {
@@ -8,6 +8,12 @@
             "device_type": "TARGET_VOLTAGE",
             "device_id": 1,
             "value": -83
+        },
+        {
+            "action": "DEVICE_WAIT",
+            "device_type": "SENSOR",
+            "device_id": 1,
+            "value": 1
         },
         {
             "action": "DEVICE_WAIT",

@@ -1,5 +1,6 @@
 import glob
 import os
+from time import time
 import tkinter as tk
 from tkinter import ttk
 from tkinter.ttk import Button
@@ -37,6 +38,7 @@ class TrainController:
 
         self.sensor_message = tk.StringVar()
         self.sensor_message.set("")
+        self._last_sensor_event_time = -1
 
         self.scenario_runner = None
         self.scenario_files = self._discover_scenarios()
@@ -255,8 +257,25 @@ class TrainController:
                 fg = "green" if str(value).lower() == "connected" else "red"
                 self.status_label.config(text=txt, foreground=fg)
             elif name == "sensor":
+                print(f"Sensor event received: {value}")
                 if value == 1:
                     self.sensor_message.set("TRAIN DETECTED")
+                    sensor_event_time = int(time() * 1000)
+                    print(f"Sensor event time: {sensor_event_time} ms")
+                    print(f"Last sensor event time: {self._last_sensor_event_time} ms")
+                    if self._last_sensor_event_time != -1:
+                        elapsed_time = sensor_event_time - self._last_sensor_event_time
+                        print(f"Last lap time: {elapsed_time} ms")
+                        # self.set_message("info", f"Last lap time: {elapsed_time} ms")
+                        
+                        # speed in mm per second
+                        speed = self.layout.length / elapsed_time  # length per second
+
+                        # prototype speed in km/h
+                        prototype_speed = speed * self.layout.scale * 3.6  # convert mm/s to km/h
+
+                        self.set_message("info", f"Prototype speed: {prototype_speed:.1f} km/h")
+                    self._last_sensor_event_time = sensor_event_time
                     def clear_message():
                         self.sensor_message.set("")
                     self.root.after(2000, clear_message)
