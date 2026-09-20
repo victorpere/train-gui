@@ -267,8 +267,7 @@ class Block:
 
     def process_message(self, message: Message) -> Tuple[bool, str]:
         if message["message_type"] == MessageType.QUERY and message["device_type"] == DeviceType.BLOCK:
-            self._cb(DeviceType.BLOCK, self.id, int(self.occupied))
-            return True, ""
+            return True, int(self.occupied)
         return False, "Unknown message"
 
 
@@ -296,12 +295,17 @@ class Sensor:
             if message["value"] >= self.ON_THRESHOLD:
                 if self._detect_on():
                     return self._cb(message)
+                else:
+                    return False, "Already on"
             else:
                 if self._detect_off():
                     return self._cb(message)
+                else:
+                    return False, "Already off"
         elif message["message_type"] == MessageType.QUERY and message["device_type"] == DeviceType.SENSOR:
             return True, int(self.on)
-
+        return False, "Unknown message"
+        
     def _detect_on(self) -> bool:
         if self._on: 
             return False

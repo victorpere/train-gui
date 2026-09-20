@@ -7,7 +7,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../a
 import pytest
 
 from communication import Communicator
-from railway import Layout, DeviceType, Message, MessageType, Sensor
+from railway import Layout, DeviceType, Message, MessageType, Sensor, Block, Track
 from util import encode_message
 from fake_serial import FakeSerial
 
@@ -22,28 +22,45 @@ def fake_factory():
     return factory
 
 
+layout_data = {
+    "name": "test layout",
+    "description": "layout with one track, two blocks and one sensor",
+    "tracks": [
+        {
+            "id": 1
+        }
+    ],
+    "blocks": [
+        {
+            "id": 1,
+            "occupied": False
+        },
+        {
+            "id": 2,
+            "occupied": True
+        }
+    ],
+    "sensors": [
+        {
+            "id": 1,
+            "track_id": 1,
+            "block_f_id": 1,
+            "block_r_id": 2
+        }
+    ]
+}
+
+
 def test_track_write_and_read(fake_factory):
     events = []
 
     def listener(name, value):
         events.append((name, value))
 
-    layout_data = {
-        "name": "test layout",
-        "description": "simple test loop",
-        "tracks": [
-            {
-                "id": 1
-            }
-        ]
-    }
-
     communicator = Communicator(serial_factory=fake_factory)
     layout = Layout(communicator)
     layout.load(layout_data)
     layout.add_listener(listener)
-
-    track = layout.components[DeviceType.TARGET_VOLTAGE.name][1]
 
     ok, msg = layout.communicator.connect("/dev/fake")
     assert ok, f"Connect failed: {msg}"
@@ -95,34 +112,6 @@ def test_sensor_read(fake_factory):
     def listener(name, value):
         events.append((name, value))
 
-    layout_data = {
-        "name": "test layout",
-        "description": "layout with two blocks and a sensor",
-        "tracks": [
-            {
-                "id": 1
-            }
-        ],
-        "blocks": [
-            {
-                "id": 1,
-                "occupied": True
-            },
-            {
-                "id": 2,
-                "occupied": False
-            }
-        ],
-        "sensors": [
-            {
-                "id": 1,
-                "track_id": 1,
-                "block_f_id": 1,
-                "block_r_id": 1
-            }
-        ]
-    }
-
     communicator = Communicator(serial_factory=fake_factory)
     layout = Layout(communicator)
     layout.load(layout_data)
@@ -131,9 +120,7 @@ def test_sensor_read(fake_factory):
     ok, msg = layout.communicator.connect("/dev/fake")
     assert ok, f"Connect failed: {msg}"
 
-    #track = layout.components[DeviceType.TARGET_VOLTAGE.name][1]
     sensor: Sensor = layout.components[DeviceType.SENSOR.name][1]
-
     assert not sensor.on
 
     # inject an incoming 3-byte message to set sensor to "ON"
@@ -161,3 +148,84 @@ def test_sensor_read(fake_factory):
     time.sleep(0.1)
 
     assert not sensor.on
+
+def test_block_occupied_update(fake_factory):
+    events = []
+    def listener(name, value):
+        events.append((name, value))
+
+    communicator = Communicator(serial_factory=fake_factory)
+    layout = Layout(communicator)
+    layout.load(layout_data)
+    layout.add_listener(listener)
+
+    ok, msg = layout.communicator.connect("/dev/fake")
+    assert ok, f"Connect failed: {msg}"
+
+    track: Track = layout.components[DeviceType.TARGET_VOLTAGE.name][1]
+    sensor: Sensor = layout.components[DeviceType.SENSOR.name][1]
+    block_f: Block = layout.components[DeviceType.BLOCK.name][1]
+    blcok_r: Block = layout.components[DeviceType.BLOCK.name][2]
+
+    # verify initial states
+    assert track.actual_direction == 0
+    assert not sensor.on
+    assert not block_f.occupied
+    assert blcok_r.occupied
+
+    track_set_target_voltage_message: Message = {
+        "message_type": MessageType.SET,
+        "device_type": DeviceType.TARGET_VOLTAGE,
+        "device_id": 1,
+        "value": 12
+    }
+
+    # send the command to set the track's target voltage in the forward direction
+    layout.command(track_set_target_voltage_message)
+    time.sleep(0.05)
+
+    # inject an incoming 3-byte message with actual voltage = 13
+    # message_type=1, device_type=0 (actual voltage), device_id=1, value=13
+    message = {
+        "message_type": 1,
+        "device_type": 0,
+        "device_id": 1,
+        "value": 12
+    }
+    incoming_message = encode_message(message)
+    fake_factory.last.inject_bytes(incoming_message)
+    time.sleep(0.1)
+    
+    assert track.actual_direction == 1
+
+    # inject an incoming 3-byte message to turn sensor "ON"
+    message = {
+        "message_type": 1,  # SET
+        "device_type": 3,   # SENSOR
+        "device_id": 1,
+        "value": 1          # ON
+    }
+    incoming_message = encode_message(message)
+    fake_factory.last.inject_bytes(incoming_message)
+    time.sleep(0.1)
+
+    # both blocks should now be occupied
+    assert sensor.on
+    assert block_f.occupied
+    assert blcok_r.occupied
+
+    # inject an incoming 3-byte message to turn sensor "OFF"
+    message = {
+        "message_type": 1,  # SET
+        "device_type": 3,   # SENSOR
+        "device_id": 1,
+        "value": 0          # OFF
+    }
+    incoming_message = encode_message(message)
+    fake_factory.last.inject_bytes(incoming_message)
+    time.sleep(0.1)
+
+    # block_r should no longer be occupied
+    assert not sensor.on
+    assert block_f.occupied
+    assert not blcok_r.occupied
