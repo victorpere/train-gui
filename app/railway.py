@@ -54,6 +54,7 @@ class Layout:
             self.description = layout_data.get("description", "n/a")
             tracks = layout_data.get("tracks", [])
             blocks = layout_data.get("blocks", [])
+            sensors = layout_data.get("sensors", [])
 
             for device_type_name, _ in DeviceType.__members__.items():
                 """Add all device types to components"""
@@ -67,6 +68,13 @@ class Layout:
             for block_data in blocks:
                 block = Block(block_data.get("id"), block_data.get("occupied", False), self._on_component_event)
                 self.components[DeviceType.BLOCK.name][block.id] = block
+
+            for sensor_data in sensors:
+                track = self.components[DeviceType.TARGET_VOLTAGE.name][sensor_data.get("track_id")]
+                block_f = self.components[DeviceType.BLOCK.name][sensor_data.get("block_f_id")]
+                block_r = self.components[DeviceType.BLOCK.name][sensor_data.get("block_r_id")]
+                sensor = Sensor(sensor_data.get("id"), track, block_f, block_r, self._on_component_event)
+                self.components[DeviceType.SENSOR.name][sensor.id] = sensor
 
             return True, ""
 
@@ -276,19 +284,18 @@ class Sensor:
     def on(self):
         return self._on
 
-    def process_message(self, \
-                        message_type: MessageType, \
-                        device_type: DeviceType, \
-                        value) -> bool:
-        if message_type == MessageType.SET and device_type == DeviceType.SENSOR:
-            if value >= self.ON_THRESHOLD:
+    def process_message(self, message: Message) -> Tuple[bool, str]:
+        print(f"sensor.process_message: {message}")
+        if message["message_type"] == MessageType.SET and message["device_type"] == DeviceType.SENSOR:
+            if message["value"] >= self.ON_THRESHOLD:
                 if self._detect_on:
-                    self._cb(DeviceType.SENSOR, self.id, 1)
+                    self._cb(message)
             else:
                 if self._detect_off:
-                    self._cb(DeviceType.SENSOR, self.id, 0)
+                    self._cb(message)
 
     def _detect_on(self) -> bool:
+        print("sensor._detect_on")
         if self._on: 
             return False
         self._on = True
@@ -297,6 +304,7 @@ class Sensor:
         return True
 
     def _detect_off(self) -> bool:
+        print("sensor._detect_off")
         if not self._on:
             return False
         self._on = False

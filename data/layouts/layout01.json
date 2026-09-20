@@ -13,6 +13,13 @@
       "track_id": 1
     }
   ],
-  "sensors": [],
+  "sensors": [
+    {
+      "id": 1,
+      "track_id": 1,
+      "block_f_id": 1,
+      "block_r_id": 1
+    }
+  ],
   "points": []
 }
