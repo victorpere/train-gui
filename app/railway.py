@@ -288,14 +288,13 @@ class Sensor:
         print(f"sensor.process_message: {message}")
         if message["message_type"] == MessageType.SET and message["device_type"] == DeviceType.SENSOR:
             if message["value"] >= self.ON_THRESHOLD:
-                if self._detect_on:
+                if self._detect_on():
                     self._cb(message)
             else:
-                if self._detect_off:
+                if self._detect_off():
                     self._cb(message)
 
     def _detect_on(self) -> bool:
-        print("sensor._detect_on")
         if self._on: 
             return False
         self._on = True
@@ -304,7 +303,6 @@ class Sensor:
         return True
 
     def _detect_off(self) -> bool:
-        print("sensor._detect_off")
         if not self._on:
             return False
         self._on = False
