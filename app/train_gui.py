@@ -249,6 +249,14 @@ class TrainController:
                 txt = str(value).capitalize()
                 fg = "green" if str(value).lower() == "connected" else "red"
                 self.status_label.config(text=txt, foreground=fg)
+            elif name == "sensor":
+                if value == 1:
+                    self.set_message("info", "TRAIN DETECTED")
+                    def clear_message():
+                        self.set_message("", "")
+                    self.root.after(2000, clear_message)
+                # else:
+                #     self.set_message("info", "SENSOR OFF")
 
         self.root.after(0, apply_event)
 

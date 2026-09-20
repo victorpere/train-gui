@@ -257,7 +257,13 @@ class Block:
     def occupied(self, value: bool):
         if self._occupied != value:
             self._occupied = value
-            self._cb(DeviceType.BLOCK, self.id, int(value))
+            message: Message = {
+                "message_type": MessageType.SET,
+                "device_type": DeviceType.BLOCK,
+                "device_id": self.id,
+                "value": int(self._occupied)
+            }
+            self._cb(message)
 
     def process_message(self, message: Message) -> Tuple[bool, str]:
         if message["message_type"] == MessageType.QUERY and message["device_type"] == DeviceType.BLOCK:
