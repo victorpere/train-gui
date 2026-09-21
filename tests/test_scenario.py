@@ -51,7 +51,8 @@ def test_scenario_runner_executes_steps():
     runner.run()
 
     assert runner.scenario["name"] == "demo"
-    assert track.target_voltage == 45
+    # scenario should reset the target voltage after completion
+    assert track.target_voltage == 0
     assert runner.current_step is None
 
 
