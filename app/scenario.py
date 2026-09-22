@@ -60,7 +60,6 @@ class ScenarioRunner:
         self.current_step = step
         step_name = f"{step.action}:{step.device_type}:{step.device_id}:{step.value}"
         self._notify("scenario_step", step_name)
-        self._notify("scenario_status", f"Running {step_name}")
 
     def _run_step(self, step: ScenarioStep):
         if step.action == ScenarioAction.DEVICE_SET.name:
@@ -114,15 +113,14 @@ class ScenarioRunner:
         """Execute the scenario synchronously."""
         self._stop_requested = False
         try:
-            for _ in range(self.scenario.times):
+            for i in range(self.scenario.times):
+                self._notify("scenario_status", f"Running {self.scenario.name}: iteration {i+1} of {self.scenario.times}")
                 for step in self.scenario.steps:
-                    print("scenario.run step start")
                     if self._stop_requested:
                         self._stop()
                         return False
                     self._set_current_step(step)
                     self._run_step(step)
-                    print(f"scenario.run step finish")
             self.current_step = None
             self._stop()
             self._notify("scenario_step", None)

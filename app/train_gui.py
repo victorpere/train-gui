@@ -14,10 +14,8 @@ class TrainController:
     def __init__(self, root, layout_data, buttons_data=None):
         self.root = root
         self.root.title("N-Scale Train Controller")
-
+        
         communicator = Communicator()
-        # self.communicator.add_listener(self._on_event)
-
         self.layout = Layout(communicator)
         self.layout.add_listener(self._on_event)
         layout_ok, layout_msg = self.layout.load(layout_data)
@@ -243,6 +241,8 @@ class TrainController:
                 self.scenario_step.set(str(value) if value else "")
             elif name == "scenario_status":
                 self.scenario_status.set(str(value))
+                if str(value).startswith("Completed"):
+                    self.stop_scenario_button.config(state="disabled")
 
         self.root.after(0, apply_event)
 
