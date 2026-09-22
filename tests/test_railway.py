@@ -51,6 +51,26 @@ layout_data = {
 }
 
 
+def test_layout_invalid_command(fake_factory):
+    communicator = Communicator(serial_factory=fake_factory)
+    layout = Layout(communicator)
+    layout.load(layout_data)
+
+    ok, msg = layout.communicator.connect("/dev/fake")
+    assert ok, f"Connect failed: {msg}"
+
+    invalid_message = Message(
+        message_type = MessageType.SET,
+        device_type = DeviceType.TARGET_VOLTAGE,
+        device_id = 999,  # non-existent device
+        value = 42
+    )
+
+    ok, msg = layout.command(invalid_message)
+    assert not ok
+    assert msg == "Device not found"
+
+
 def test_track_write_and_read(fake_factory):
     events = []
 
@@ -65,14 +85,14 @@ def test_track_write_and_read(fake_factory):
     ok, msg = layout.communicator.connect("/dev/fake")
     assert ok, f"Connect failed: {msg}"
 
-    message: Message = {
-        "message_type": MessageType.SET,
-        "device_type": DeviceType.TARGET_VOLTAGE,
-        "device_id": 1,
-        "value": 42
-    }
+    set_target_voltage_message = Message(
+        message_type = MessageType.SET,
+        device_type = DeviceType.TARGET_VOLTAGE,
+        device_id = 1,
+        value = 42
+    )
 
-    ok, msg = layout.command(message)
+    ok, msg = layout.command(set_target_voltage_message)
     assert ok, f"Set voltage failed: {msg}"
 
     # allow background thread to process
@@ -173,12 +193,12 @@ def test_block_occupied_update(fake_factory):
     assert not block_f.occupied
     assert blcok_r.occupied
 
-    track_set_target_voltage_message: Message = {
-        "message_type": MessageType.SET,
-        "device_type": DeviceType.TARGET_VOLTAGE,
-        "device_id": 1,
-        "value": 12
-    }
+    track_set_target_voltage_message: Message = Message(
+        message_type = MessageType.SET,
+        device_type = DeviceType.TARGET_VOLTAGE,
+        device_id = 1,
+        value = 12
+    )
 
     # send the command to set the track's target voltage in the forward direction
     layout.command(track_set_target_voltage_message)

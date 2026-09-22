@@ -187,12 +187,12 @@ class TrainController:
         self.set_message()
         directional_voltage = voltage * self.direction.get()
 
-        message: Message = {
-            "message_type": MessageType.SET,
-            "device_type": DeviceType.TARGET_VOLTAGE,
-            "device_id": 1,
-            "value": directional_voltage
-        }
+        message = Message(
+            message_type = MessageType.SET,
+            device_type = DeviceType.TARGET_VOLTAGE,
+            device_id = 1,
+            value = directional_voltage
+        )
 
         ok, msg = self.layout.command(message)
 
@@ -261,12 +261,10 @@ class TrainController:
                 if value == 1:
                     self.sensor_message.set("TRAIN DETECTED")
                     sensor_event_time = int(time() * 1000)
-                    print(f"Sensor event time: {sensor_event_time} ms")
-                    print(f"Last sensor event time: {self._last_sensor_event_time} ms")
+
                     if self._last_sensor_event_time != -1:
                         elapsed_time = sensor_event_time - self._last_sensor_event_time
                         print(f"Last lap time: {elapsed_time} ms")
-                        # self.set_message("info", f"Last lap time: {elapsed_time} ms")
                         
                         # speed in mm per second
                         speed = self.layout.length / elapsed_time  # length per second

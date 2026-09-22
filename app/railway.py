@@ -1,4 +1,5 @@
-from typing import List, Tuple, Protocol, TypedDict, overload
+from pydantic import BaseModel
+from typing import List, Tuple, Protocol, overload
 from enum import Enum
 from communication import Communicator
 
@@ -17,7 +18,7 @@ class DeviceType(Enum):
     SIGNAL = 5
 
 
-class Message(TypedDict):
+class Message(BaseModel):
     message_type: MessageType
     device_type: DeviceType
     device_id: int
@@ -90,11 +91,11 @@ class Layout:
 
     def command(self, message: Message) -> Tuple[bool, str]:
         """Processes command to component"""
-        target_type_components: dict = self.components.get(message["device_type"].name)
-        target_component: LayoutComponent = target_type_components.get(message["device_id"])
+        target_type_components: dict = self.components.get(message.device_type.name, {})
+        target_component: LayoutComponent = target_type_components.get(message.device_id)
 
         if target_component == None:
-            print(f"device not foud: {message['device_type'].name}:{message['device_id']}")
+            print(f"device not foud: {message.device_type.name}:{message.device_id}")
             return False, "Device not found"
         return target_component.process_message(message)
 
@@ -105,17 +106,13 @@ class Layout:
             track: Track = target_voltage_device
             ok, msg = track.set_voltage(0)
 
-    def _send_message(self, \
-                     message_type: MessageType, \
-                     device_type: DeviceType, \
-                     device_id: int, \
-                     value: int):
+    def _send_message(self, message: Message):
         """Sends message via communicator"""
         message = {
-            "message_type": message_type.value,
-            "device_type": device_type.value,
-            "device_id": device_id,
-            "value": value
+            "message_type": message.message_type.value,
+            "device_type": message.device_type.value,
+            "device_id": message.device_id,
+            "value": message.value
         }
 
         ok, msg = self.communicator.send(message)
@@ -137,12 +134,12 @@ class Layout:
                 device_id = value.get("device_id")
                 device_value = value.get("value")
 
-                message: Message = {
-                    "message_type": MessageType(message_type),
-                    "device_type": DeviceType(device_type),
-                    "device_id": device_id,
-                    "value": device_value
-                }
+                message = Message(
+                    message_type = MessageType(message_type),
+                    device_type = DeviceType(device_type),
+                    device_id = device_id,
+                    value = device_value
+                )
 
                 ok, msg = self.command(message)
 
@@ -158,20 +155,20 @@ class Layout:
         # print(f"_on_component_event message received: {message}")
         cb_message: Tuple[str, object] = None
 
-        if message["device_type"] == DeviceType.TARGET_VOLTAGE and message["message_type"] == MessageType.SET:
-            print(f"sending message to communicator: {message['value']}")
-            ok, msg = self._send_message(MessageType.SET, DeviceType.TARGET_VOLTAGE, message["device_id"], message["value"])
+        if message.device_type == DeviceType.TARGET_VOLTAGE and message.message_type == MessageType.SET:
+            print(f"sending message to communicator: {message.value}")
+            ok, msg = self._send_message(message)
             print(f"response from communicator: {ok}:{msg}")
             if ok:
-                cb_message = "target_voltage", message["value"]
+                cb_message = "target_voltage", message.value
             else:
                 return False, msg
-        elif message["device_type"] == DeviceType.ACTUAL_VOLTAGE:
-            cb_message = "actual_voltage", message["value"]
-        elif message["device_type"] == DeviceType.BLOCK:
-            cb_message = "block", message["value"]
-        elif message["device_type"] == DeviceType.SENSOR:
-            cb_message = "sensor", message["value"]
+        elif message.device_type == DeviceType.ACTUAL_VOLTAGE:
+            cb_message = "actual_voltage", message.value
+        elif message.device_type == DeviceType.BLOCK:
+            cb_message = "block", message.value
+        elif message.device_type == DeviceType.SENSOR:
+            cb_message = "sensor", message.value
         else:
             return False, "Unknown device"
 
@@ -217,26 +214,26 @@ class Track:
         
         try:
             self._target_voltage = voltage
-            message: Message = {
-                "message_type": MessageType.SET,
-                "device_type": DeviceType.TARGET_VOLTAGE,
-                "device_id": self.id,
-                "value": self._target_voltage
-            }
+            message = Message(
+                message_type = MessageType.SET,
+                device_type = DeviceType.TARGET_VOLTAGE,
+                device_id = self.id,
+                value = self._target_voltage
+            )
             ok, msg = self._cb(message)
             return ok, msg
         except Exception as e:
             return False, str(e)
 
     def process_message(self, message: Message) -> Tuple[bool, str]:
-        if message["message_type"] == MessageType.SET and message["device_type"] == DeviceType.ACTUAL_VOLTAGE:
-            self._actual_voltage = message["value"]
+        if message.message_type == MessageType.SET and message.device_type == DeviceType.ACTUAL_VOLTAGE:
+            self._actual_voltage = message.value
             return self._cb(message)
 
-        if message["message_type"] == MessageType.SET and message["device_type"] == DeviceType.TARGET_VOLTAGE:
-            return self.set_voltage(message["value"])
+        if message.message_type == MessageType.SET and message.device_type == DeviceType.TARGET_VOLTAGE:
+            return self.set_voltage(message.value)
 
-        if message["message_type"] == MessageType.QUERY and message["device_type"] == DeviceType.ACTUAL_VOLTAGE:
+        if message.message_type == MessageType.QUERY and message.device_type == DeviceType.ACTUAL_VOLTAGE:
             return True, str(self._actual_voltage)
 
         return False, "Unknown message"
@@ -259,17 +256,17 @@ class Block:
     def occupied(self, value: bool):
         if self._occupied != value:
             self._occupied = value
-            message: Message = {
-                "message_type": MessageType.SET,
-                "device_type": DeviceType.BLOCK,
-                "device_id": self.id,
-                "value": int(self._occupied)
-            }
+            message: Message = Message(
+                message_type = MessageType.SET,
+                device_type = DeviceType.BLOCK,
+                device_id = self.id,
+                value = int(self._occupied)
+            )
             self._cb(message)
 
     def process_message(self, message: Message) -> Tuple[bool, str]:
-        if message["message_type"] == MessageType.QUERY and message["device_type"] == DeviceType.BLOCK:
-            return True, int(self.occupied)
+        if message.message_type == MessageType.QUERY and message.device_type == DeviceType.BLOCK:
+            return True, str(int(self.occupied))
         return False, "Unknown message"
 
 
@@ -292,32 +289,34 @@ class Sensor:
         return self._on
 
     def process_message(self, message: Message) -> Tuple[bool, str]:
-        if message["message_type"] == MessageType.SET and message["device_type"] == DeviceType.SENSOR:
-            if message["value"] >= self.ON_THRESHOLD:
-                if self._detect_on():
+        if message.message_type == MessageType.SET and message.device_type == DeviceType.SENSOR:
+            if message.value >= self.ON_THRESHOLD:
+                ok, msg = self._detect_on()
+                if ok:
                     return self._cb(message)
                 else:
-                    return False, "Already on"
+                    return False, msg
             else:
-                if self._detect_off():
+                ok, msg = self._detect_off()
+                if ok:
                     return self._cb(message)
                 else:
-                    return False, "Already off"
-        elif message["message_type"] == MessageType.QUERY and message["device_type"] == DeviceType.SENSOR:
+                    return False, msg
+        elif message.message_type == MessageType.QUERY and message.device_type == DeviceType.SENSOR:
             return True, int(self.on)
         return False, "Unknown message"
         
-    def _detect_on(self) -> bool:
+    def _detect_on(self) -> Tuple[bool, str]:
         if self._on: 
-            return False
+            return False, "Already on"
         self._on = True
         self._block_f.occupied = True
         self._block_r.occupied = True
-        return True
+        return True, ""
 
-    def _detect_off(self) -> bool:
+    def _detect_off(self) -> Tuple[bool, str]:
         if not self._on:
-            return False
+            return False, "Already off"
         self._on = False
         if self._track.actual_direction == 1:
             self._block_r.occupied = False
@@ -325,4 +324,4 @@ class Sensor:
         elif self._track.actual_direction == -1:
             self._block_f.occupied = False
             self._block_r.occupied = True
-        return True
+        return True, ""

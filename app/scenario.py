@@ -3,7 +3,7 @@ from __future__ import annotations
 import time
 from pydantic import BaseModel
 from threading import Thread
-from typing import Callable, List, Optional, cast
+from typing import Callable, List, Optional
 from enum import Enum
 from railway import Layout, DeviceType, MessageType, Message
 
@@ -64,12 +64,12 @@ class ScenarioRunner:
 
     def _run_step(self, step: ScenarioStep):
         if step.action == ScenarioAction.DEVICE_SET.name:
-            message: Message = {
-                "message_type": MessageType.SET,
-                "device_type": DeviceType[step.device_type],
-                "device_id": step.device_id,
-                "value": step.value
-            }
+            message = Message(
+                message_type = MessageType.SET,
+                device_type = DeviceType[step.device_type],
+                device_id = step.device_id,
+                value = step.value
+            )
             ok, msg = self.layout.command(message)
             if not ok:
                 print(f"scenario._run_step error: {msg}")
@@ -77,12 +77,12 @@ class ScenarioRunner:
             return
 
         if step.action == ScenarioAction.DEVICE_WAIT.name:
-            message: Message = {
-                "message_type": MessageType.QUERY,
-                "device_type": DeviceType[step.device_type],
-                "device_id": step.device_id,
-                "value": 0
-            }
+            message = Message(
+                message_type = MessageType.QUERY,
+                device_type = DeviceType[step.device_type],
+                device_id = step.device_id,
+                value = 0
+            )
             target_value = step.value
             target_reached = False
             while not self._stop_requested and not target_reached:
