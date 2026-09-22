@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import time
+from pydantic import BaseModel
 from threading import Thread
-from typing import Callable, List, TypedDict, NotRequired, cast
+from typing import Callable, List, Optional, cast
 from enum import Enum
 from railway import Layout, DeviceType, MessageType, Message
 
@@ -13,14 +14,14 @@ class ScenarioAction(Enum):
     TIME_WAIT = 2
 
 
-class ScenarioStep(TypedDict):
+class ScenarioStep(BaseModel):
     action: str
-    device_type: NotRequired[str]
-    device_id: NotRequired[int]
+    device_type: Optional[str] = None
+    device_id: Optional[int] = None
     value: int
 
 
-class Scenario(TypedDict):
+class Scenario(BaseModel):
     name: str
     description: str
     times: int
@@ -31,8 +32,7 @@ class ScenarioRunner:
     """Execute a JSON-defined scenario against a Track."""
 
     def __init__(self, scenario: dict, layout: Layout):
-        self.scenario: Scenario = cast(Scenario, scenario)
-        # TODO: scenario validation
+        self.scenario: Scenario = Scenario(**scenario)
 
         self.layout = layout
         self.current_step: ScenarioStep = None
@@ -58,17 +58,17 @@ class ScenarioRunner:
 
     def _set_current_step(self, step: ScenarioStep):
         self.current_step = step
-        step_name = f"{step.get('action')}:{step.get('device_type', '')}:{step.get('device_id', '')}:{step.get('value')}"
+        step_name = f"{step.action}:{step.device_type}:{step.device_id}:{step.value}"
         self._notify("scenario_step", step_name)
         self._notify("scenario_status", f"Running {step_name}")
 
     def _run_step(self, step: ScenarioStep):
-        if step["action"] == ScenarioAction.DEVICE_SET.name:
+        if step.action == ScenarioAction.DEVICE_SET.name:
             message: Message = {
                 "message_type": MessageType.SET,
-                "device_type": DeviceType[step["device_type"]],
-                "device_id": step["device_id"],
-                "value": step["value"]
+                "device_type": DeviceType[step.device_type],
+                "device_id": step.device_id,
+                "value": step.value
             }
             ok, msg = self.layout.command(message)
             if not ok:
@@ -76,14 +76,14 @@ class ScenarioRunner:
                 raise RuntimeError(msg)
             return
 
-        if step["action"] == ScenarioAction.DEVICE_WAIT.name:
+        if step.action == ScenarioAction.DEVICE_WAIT.name:
             message: Message = {
                 "message_type": MessageType.QUERY,
-                "device_type": DeviceType[step["device_type"]],
-                "device_id": step["device_id"],
+                "device_type": DeviceType[step.device_type],
+                "device_id": step.device_id,
                 "value": 0
             }
-            target_value = step["value"]
+            target_value = step.value
             target_reached = False
             while not self._stop_requested and not target_reached:
                 ok, msg = self.layout.command(message)
@@ -98,8 +98,8 @@ class ScenarioRunner:
                 raise InterruptedError("Scenario stopped")
             return
 
-        if step["action"] == ScenarioAction.TIME_WAIT.name:
-            wait_ms = step["value"]
+        if step.action == ScenarioAction.TIME_WAIT.name:
+            wait_ms = step.value
             end = time.monotonic() + (wait_ms / 1000.0)
             while not self._stop_requested and time.monotonic() < end:
                 time.sleep(0.05)
@@ -114,8 +114,8 @@ class ScenarioRunner:
         """Execute the scenario synchronously."""
         self._stop_requested = False
         try:
-            for _ in range(self.scenario.get("times")):
-                for step in self.scenario.get("steps"):
+            for _ in range(self.scenario.times):
+                for step in self.scenario.steps:
                     print("scenario.run step start")
                     if self._stop_requested:
                         self._stop()
@@ -126,7 +126,7 @@ class ScenarioRunner:
             self.current_step = None
             self._stop()
             self._notify("scenario_step", None)
-            self._notify("scenario_status", f"Completed {self.scenario['name']}")
+            self._notify("scenario_status", f"Completed {self.scenario.name}")
             return True
         except InterruptedError:
             self._stop()

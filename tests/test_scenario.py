@@ -16,18 +16,17 @@ def factory(port):
     factory.last = fs
     return fs
 
+layout_data = {
+    "name": "test layout",
+    "description": "simple test loop",
+    "tracks": [
+        {
+            "id": 1
+        }
+    ]
+}
 
-def test_scenario_runner_executes_steps():
-    layout_data = {
-        "name": "test layout",
-        "description": "simple test loop",
-        "tracks": [
-            {
-                "id": 1
-            }
-        ]
-    }
-    
+def test_scenario_runner_executes_steps():    
     communicator = Communicator(serial_factory=factory)
     layout = Layout(communicator)
     layout.load(layout_data)
@@ -36,6 +35,7 @@ def test_scenario_runner_executes_steps():
 
     scenario = {
         "name": "demo",
+        "description": "A simple demo scenario",
         "times": 1,
         "steps": [
             {
@@ -50,23 +50,13 @@ def test_scenario_runner_executes_steps():
     runner = ScenarioRunner(scenario, layout)
     runner.run()
 
-    assert runner.scenario["name"] == "demo"
+    assert runner.scenario.name == "demo"
     # scenario should reset the target voltage after completion
     assert track.target_voltage == 0
     assert runner.current_step is None
 
 
 def test_scenario_runner_waits_for_actual_voltage():
-    layout_data = {
-                "name": "test layout",
-                "description": "simple test loop",
-                "tracks": [
-                    {
-                        "id": 1
-                    }
-                ]
-            }
-    
     communicator = Communicator(serial_factory=factory)
     layout = Layout(communicator)
     layout.load(layout_data)
@@ -75,6 +65,7 @@ def test_scenario_runner_waits_for_actual_voltage():
 
     scenario = {
         "name": "wait-demo",
+        "description": "A scenario that waits for actual voltage",
         "times": 1,
         "steps": [
             {
@@ -106,3 +97,30 @@ def test_scenario_runner_waits_for_actual_voltage():
     runner.run()
 
     assert track.actual_voltage == 11
+
+
+def test_invalid_scenario():
+    communicator = Communicator(serial_factory=factory)
+    layout = Layout(communicator)
+    layout.load(layout_data)
+    communicator.connect("/dev/fake")
+
+    scenario = {
+        "name": "invalid-demo",
+        "description": "An invalid scenario missing action",
+        "times": 1,
+        "steps": [
+            {
+                "device_type": "TARGET_VOLTAGE",
+                "value": 45
+            }
+        ]
+    }
+
+    try:
+        runner = ScenarioRunner(scenario, layout)
+        runner.run()
+    except Exception as e:
+        assert isinstance(e, ValueError)
+    else:
+        assert False, "Expected ValueError for invalid scenario"
