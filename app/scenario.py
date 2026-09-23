@@ -137,10 +137,8 @@ class ScenarioRunner:
                         self._stop()
                         self.state = ScenarioState(status=ScenarioStatus.READY, message="Stopped")
                         return False
-                    self._set_current_step(step)
                     self.state = ScenarioState(status=ScenarioStatus.RUNNING, iteration=i+1, step=step)
                     self._run_step(step)
-            self.current_step = None
             self._stop()
             self.state = ScenarioState(status=ScenarioStatus.READY, message="Completed")
             return True
