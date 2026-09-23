@@ -249,3 +249,40 @@ def test_block_occupied_update(fake_factory):
     assert not sensor.on
     assert block_f.occupied
     assert not blcok_r.occupied
+
+def test_duplicate_sensor_events(fake_factory):
+    events = []
+    def listener(name, value):
+        events.append((name, value))
+
+    communicator = Communicator(serial_factory=fake_factory)
+    layout = Layout(communicator)
+    layout.load(layout_data)
+    layout.add_listener(listener)
+
+    ok, msg = layout.communicator.connect("/dev/fake")
+    assert ok, f"Connect failed: {msg}"
+
+    sensor: Sensor = layout.components[DeviceType.SENSOR.name][1]
+
+    # inject an incoming 3-byte message to turn sensor "ON"
+    message = {
+        "message_type": 1,  # SET
+        "device_type": 3,   # SENSOR
+        "device_id": 1,
+        "value": 1          # ON
+    }
+    incoming_message = encode_message(message)
+    fake_factory.last.inject_bytes(incoming_message)
+    time.sleep(0.1)
+
+    assert sensor.on
+
+    # inject the same message again
+    incoming_message = encode_message(message)
+    fake_factory.last.inject_bytes(incoming_message)
+    time.sleep(0.1)
+
+    # sensor should still be ON and no duplicate events should be triggered
+    assert sensor.on
+    assert events.count(("sensor", 1)) == 1
