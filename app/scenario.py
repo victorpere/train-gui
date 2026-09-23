@@ -20,12 +20,28 @@ class ScenarioStep(BaseModel):
     device_id: Optional[int] = None
     value: int
 
+    @property
+    def name(self) -> str:
+        return f"{self.action}:{self.device_type or ""}:{self.device_id or ""}:{self.value}"
+
 
 class Scenario(BaseModel):
     name: str
     description: str
     times: int
     steps: List[ScenarioStep]
+
+
+class ScenarioStatus(Enum):
+    READY = "Ready"
+    RUNNING = "Running"
+
+
+class ScenarioState(BaseModel):
+    status: ScenarioStatus
+    step: Optional[ScenarioStep] = None
+    iteration: Optional[int] = None
+    message: Optional[str] = None
 
 
 class ScenarioRunner:
@@ -35,10 +51,19 @@ class ScenarioRunner:
         self.scenario: Scenario = Scenario(**scenario)
 
         self.layout = layout
-        self.current_step: ScenarioStep = None
         self._stop_requested = False
         self._thread = None
         self._listeners: List[Callable[[str, object], None]] = []
+        self.state: ScenarioState = ScenarioState(status=ScenarioStatus.READY)
+
+    @property
+    def state(self) -> ScenarioState:
+        return self._state
+
+    @state.setter
+    def state(self, value: ScenarioState):
+        self._state = value
+        self._notify("scenario_state", self._state)
 
     def add_listener(self, cb: Callable[[str, object], None]):
         self._listeners.append(cb)
@@ -51,15 +76,7 @@ class ScenarioRunner:
                 pass
 
     def _stop(self):
-        self.current_step = None
         self.layout.stop_all()
-        self._notify("scenario_status", "Stopped")
-        self._notify("scenario_step", None)
-
-    def _set_current_step(self, step: ScenarioStep):
-        self.current_step = step
-        step_name = f"{step.action}:{step.device_type}:{step.device_id}:{step.value}"
-        self._notify("scenario_step", step_name)
 
     def _run_step(self, step: ScenarioStep):
         if step.action == ScenarioAction.DEVICE_SET.name:
@@ -114,25 +131,27 @@ class ScenarioRunner:
         self._stop_requested = False
         try:
             for i in range(self.scenario.times):
-                self._notify("scenario_status", f"Running {self.scenario.name}: iteration {i+1} of {self.scenario.times}")
+                self.state = ScenarioState(status=ScenarioStatus.RUNNING, iteration=i+1)
                 for step in self.scenario.steps:
                     if self._stop_requested:
                         self._stop()
+                        self.state = ScenarioState(status=ScenarioStatus.READY, message="Stopped")
                         return False
                     self._set_current_step(step)
+                    self.state = ScenarioState(status=ScenarioStatus.RUNNING, iteration=i+1, step=step)
                     self._run_step(step)
             self.current_step = None
             self._stop()
-            self._notify("scenario_step", None)
-            self._notify("scenario_status", f"Completed {self.scenario.name}")
+            self.state = ScenarioState(status=ScenarioStatus.READY, message="Completed")
             return True
         except InterruptedError:
             self._stop()
+            self.state = ScenarioState(status=ScenarioStatus.READY, message="Interrupted")
             return False
         except Exception as exc:
             print(f"scenario.run exception: {str(exc)}")
             self._stop()
-            self._notify("scenario_error", str(exc))
+            self.state = ScenarioState(status=ScenarioStatus.READY, message=str(exc))
             return False
 
     def start(self):

@@ -5,7 +5,7 @@ import tkinter as tk
 from tkinter import ttk
 from tkinter.ttk import Button
 import tkinter.font as tkFont
-from scenario import ScenarioRunner
+from scenario import ScenarioRunner, ScenarioState
 from railway import Layout, Message, MessageType, DeviceType
 from communication import Communicator
 
@@ -14,7 +14,7 @@ class TrainController:
     def __init__(self, root, layout_data, buttons_data=None):
         self.root = root
         self.root.title("N-Scale Train Controller")
-        
+
         communicator = Communicator()
         self.layout = Layout(communicator)
         self.layout.add_listener(self._on_event)
@@ -116,11 +116,11 @@ class TrainController:
         self.stop_scenario_button.grid(row=0, column=3, padx=5)
 
         ttk.Label(scenario_frame, text="Status:").grid(row=1, column=0, sticky="w", padx=5)
-        self.scenario_status_label = ttk.Label(scenario_frame, textvariable=self.scenario_status, foreground="blue")
+        self.scenario_status_label = ttk.Label(scenario_frame, textvariable=self.scenario_status)
         self.scenario_status_label.grid(row=1, column=1, columnspan=3, sticky="w", padx=5)
 
         ttk.Label(scenario_frame, text="Current step:").grid(row=2, column=0, sticky="w", padx=5)
-        self.scenario_step_label = ttk.Label(scenario_frame, textvariable=self.scenario_step, foreground="darkgreen")
+        self.scenario_step_label = ttk.Label(scenario_frame, textvariable=self.scenario_step)
         self.scenario_step_label.grid(row=2, column=1, columnspan=3, sticky="w", padx=5)
 
         message_frame = ttk.LabelFrame(self.root, text="Messages", padding=10)
@@ -223,13 +223,13 @@ class TrainController:
     def set_message(self, level="", message=""):
         """Display a message in the message label with a given level (info, warning, error)."""
         if level == "info":
-            self.message_label.config(text=message, foreground="blue")
+            self.message_label.config(text=message, foreground="")
         elif level == "warning":
             self.message_label.config(text=message, foreground="orange")
         elif level == "error":
             self.message_label.config(text=message, foreground="red")
         else:
-            self.message_label.config(text=message, foreground="black")
+            self.message_label.config(text=message, foreground="")
 
     def reset_buttons(self):
         for btn in self.control_buttons:
@@ -243,6 +243,13 @@ class TrainController:
                 self.scenario_status.set(str(value))
                 if str(value).startswith("Completed"):
                     self.stop_scenario_button.config(state="disabled")
+            elif name == "scenario_state":
+                scenario_state: ScenarioState = value
+                self.scenario_status.set(f"{scenario_state.status.value} {self.scenario_runner.scenario.name}")
+                if scenario_state.step is not None:
+                    self.scenario_step.set(str(scenario_state.step.name))
+                else:
+                    self.scenario_step.set("")
 
         self.root.after(0, apply_event)
 
