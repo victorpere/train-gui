@@ -240,6 +240,10 @@ class TrainController:
                 elif scenario_state.status == ScenarioStatus.RUNNING:
                     self.run_scenario_button.config(state="disabled")
                     self.stop_scenario_button.config(state="normal")
+                elif scenario_state.status == ScenarioStatus.ERROR:
+                    self.run_scenario_button.config(state="normal")
+                    self.stop_scenario_button.config(state="disabled")
+                    self.set_message("error", scenario_state.message)
                 self.scenario_status.set(f"{scenario_state.status.value} {self.scenario_runner.scenario.name}")
                 if scenario_state.step is not None:
                     self.scenario_step.set(str(scenario_state.step.name))

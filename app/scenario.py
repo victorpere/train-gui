@@ -33,6 +33,7 @@ class Scenario(BaseModel):
 class ScenarioStatus(Enum):
     READY = "Ready"
     RUNNING = "Running"
+    ERROR = "Error"
 
 
 class ScenarioState(BaseModel):
@@ -154,7 +155,7 @@ class ScenarioRunner:
         except Exception as exc:
             print(f"scenario.run exception: {str(exc)}")
             self._stop()
-            self.state = ScenarioState(status=ScenarioStatus.READY, message=str(exc))
+            self.state = ScenarioState(status=ScenarioStatus.ERROR, message=str(exc))
             return False
 
     def start(self):
