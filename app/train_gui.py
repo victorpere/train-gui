@@ -1,11 +1,11 @@
-import glob
 import os
 from time import time
 import tkinter as tk
 from tkinter import ttk
+from tkinter import filedialog as fd
 from tkinter.ttk import Button
 import tkinter.font as tkFont
-from scenario import ScenarioRunner, ScenarioState
+from scenario import ScenarioRunner, ScenarioState, ScenarioStatus
 from railway import Layout, Message, MessageType, DeviceType
 from communication import Communicator
 
@@ -38,17 +38,13 @@ class TrainController:
         self.sensor_message.set("")
         self._last_sensor_event_time = -1
 
-        self.scenario_runner = None
-        self.scenario_files = self._discover_scenarios()
+        self.scenario_runner = ScenarioRunner(layout=self.layout)
+        self.scenario_runner.add_listener(self._on_scenario_event)
         self.scenario_name = tk.StringVar()
-        self.scenario_status = tk.StringVar(value="No scenario loaded")
+        self.scenario_status = tk.StringVar(value="")
         self.scenario_step = tk.StringVar(value="")
 
         self.build_ui()
-
-    def _discover_scenarios(self):
-        pattern = os.path.join("data", "scenarios", "*.json")
-        return sorted(glob.glob(pattern))
 
     def build_ui(self):
         # Serial connection frame
@@ -102,15 +98,10 @@ class TrainController:
         scenario_frame = ttk.LabelFrame(self.root, text="Scenario", padding=10)
         scenario_frame.pack(fill="x", padx=10, pady=5)
 
-        scenario_names = [os.path.basename(path) for path in self.scenario_files]
-        self.scenario_combo = ttk.Combobox(scenario_frame, values=scenario_names, state="readonly", width=30)
-        if scenario_names:
-            self.scenario_combo.current(0)
-        self.scenario_combo.grid(row=0, column=0, padx=5, pady=5)
+        self.scenario_open_button = ttk.Button(scenario_frame, text='Load from file', command=self.select_file)
+        self.scenario_open_button.grid(row=0, column=0, padx=5)
 
-        self.load_scenario_button = ttk.Button(scenario_frame, text="Load", command=self.load_scenario)
-        self.load_scenario_button.grid(row=0, column=1, padx=5)
-        self.run_scenario_button = ttk.Button(scenario_frame, text="Run", command=self.run_scenario)
+        self.run_scenario_button = ttk.Button(scenario_frame, text="Run", command=self.run_scenario, state="disabled")
         self.run_scenario_button.grid(row=0, column=2, padx=5)
         self.stop_scenario_button = ttk.Button(scenario_frame, text="Stop", command=self.stop_scenario, state="disabled")
         self.stop_scenario_button.grid(row=0, column=3, padx=5)
@@ -127,14 +118,12 @@ class TrainController:
         message_frame.pack(fill="x", padx=10, pady=5)
         self.message_label = ttk.Label(message_frame, text="")
         self.message_label.pack()
-    
-    def load_scenario(self):
-        selected = self.scenario_combo.get()
-        if not selected:
-            self.set_message("warning", "No scenario selected")
-            return
 
-        scenario_path = os.path.join("data", "scenarios", selected)
+    def select_file(self):
+        filepath = fd.askopenfilename(title='Open a file', initialdir=os.path.join("data", "scenarios"), filetypes=[('JSON files', '*.json')])
+        self.load_scenario_file(filepath)
+
+    def load_scenario_file(self, scenario_path):
         try:
             from util import load_data_from_file
             data = load_data_from_file(scenario_path)
@@ -142,13 +131,13 @@ class TrainController:
             self.set_message("error", str(exc))
             return
 
-        self.scenario_runner = ScenarioRunner(data, layout=self.layout)
-        self.scenario_runner.add_listener(self._on_scenario_event)
-        self.scenario_name.set(data.get("name", selected))
-        self.scenario_status.set(f"Loaded {data.get('name', selected)}")
-        self.scenario_step.set("")
-        self.set_message("info", f"Scenario loaded: {data.get('name', selected)}")
-
+        ok, msg = self.scenario_runner.load_scenario(data)
+        if ok:
+            self.scenario_step.set("")
+            self.set_message("info", f"Scenario loaded: {data.get('name', self.scenario_runner.scenario.name)}")
+        else:
+            self.set_message("error", f"Scenario failed to load: {msg}")
+        
     def run_scenario(self):
         if not self.scenario_runner:
             self.set_message("warning", "Load a scenario first")
@@ -237,14 +226,20 @@ class TrainController:
 
     def _on_scenario_event(self, name, value):
         def apply_event():
-            if name == "scenario_step":
-                self.scenario_step.set(str(value) if value else "")
-            elif name == "scenario_status":
-                self.scenario_status.set(str(value))
-                if str(value).startswith("Completed"):
+            if name == "scenario_state":
+                if value == None:
+                    self.scenario_status.set("")
+                    self.scenario_step.set("")
+                    self.run_scenario_button.config(state="disabled")
                     self.stop_scenario_button.config(state="disabled")
-            elif name == "scenario_state":
+                    return
                 scenario_state: ScenarioState = value
+                if scenario_state.status == ScenarioStatus.READY:
+                    self.run_scenario_button.config(state="normal")
+                    self.stop_scenario_button.config(state="disabled")
+                elif scenario_state.status == ScenarioStatus.RUNNING:
+                    self.run_scenario_button.config(state="disabled")
+                    self.stop_scenario_button.config(state="normal")
                 self.scenario_status.set(f"{scenario_state.status.value} {self.scenario_runner.scenario.name}")
                 if scenario_state.step is not None:
                     self.scenario_step.set(str(scenario_state.step.name))

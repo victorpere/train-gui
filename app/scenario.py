@@ -1,9 +1,7 @@
-from __future__ import annotations
-
 import time
 from pydantic import BaseModel
 from threading import Thread
-from typing import Callable, List, Optional
+from typing import Callable, List, Optional, Tuple
 from enum import Enum
 from railway import Layout, DeviceType, MessageType, Message
 
@@ -47,14 +45,21 @@ class ScenarioState(BaseModel):
 class ScenarioRunner:
     """Execute a JSON-defined scenario against a Track."""
 
-    def __init__(self, scenario: dict, layout: Layout):
-        self.scenario: Scenario = Scenario(**scenario)
-
+    def __init__(self, layout: Layout):
         self.layout = layout
+        self.scenario = None
         self._stop_requested = False
         self._thread = None
         self._listeners: List[Callable[[str, object], None]] = []
-        self.state: ScenarioState = ScenarioState(status=ScenarioStatus.READY)
+
+    def load_scenario(self, scenario_data: dict) -> Tuple[bool, str]:
+        try:
+            self.scenario = Scenario(**scenario_data)
+            self.state = ScenarioState(status=ScenarioStatus.READY)
+            return True, ""
+        except Exception as exc:
+            self.state = None
+            return False, str(exc)
 
     @property
     def state(self) -> ScenarioState:

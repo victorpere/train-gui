@@ -47,7 +47,9 @@ def test_scenario_runner_executes_steps():
         ]
     }
 
-    runner = ScenarioRunner(scenario, layout)
+    runner = ScenarioRunner(layout)
+    ok, msg = runner.load_scenario(scenario)
+    assert ok, f"Load scenario failed: {msg}"
     runner.run()
 
     assert runner.scenario.name == "demo"
@@ -77,7 +79,9 @@ def test_scenario_runner_waits_for_actual_voltage():
         ],
     }
 
-    runner = ScenarioRunner(scenario, layout)
+    runner = ScenarioRunner(layout)
+    ok, msg = runner.load_scenario(scenario)
+    assert ok, f"Load scenario failed: {msg}"
 
     def later():
         time.sleep(0.05)
@@ -117,10 +121,7 @@ def test_invalid_scenario():
         ]
     }
 
-    try:
-        runner = ScenarioRunner(scenario, layout)
-        runner.run()
-    except Exception as e:
-        assert isinstance(e, ValueError)
-    else:
-        assert False, "Expected ValueError for invalid scenario"
+    runner = ScenarioRunner(layout)
+    ok, _ = runner.load_scenario(scenario)
+
+    assert not ok
