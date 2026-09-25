@@ -276,9 +276,7 @@ class TrainController:
         elif message.device_type == DeviceType.SENSOR:
             print(f"Sensor event received: {message.value}")
             if message.value == 1:
-                self.sensor_message.set("TRAIN DETECTED")
                 sensor_event_time = int(time() * 1000)
-
                 if self._last_sensor_event_time != -1:
                     elapsed_time = sensor_event_time - self._last_sensor_event_time
                     print(f"Last lap time: {elapsed_time} ms")
@@ -291,9 +289,6 @@ class TrainController:
 
                     self.set_message("info", f"Prototype speed: {prototype_speed:.1f} km/h")
                 self._last_sensor_event_time = sensor_event_time
-                def clear_message():
-                    self.sensor_message.set("")
-                self.root.after(2000, clear_message)
         else:
             return False, "Unknown device"
 
