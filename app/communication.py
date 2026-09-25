@@ -101,7 +101,8 @@ class Communicator:
                                     # by removing the first byte and trying again
                                     del buffer[0]
                 except Exception:
-                    pass
+                    self.disconnect()
+                    return
                 time.sleep(0.05)
 
         Thread(target=_reader, daemon=True).start()
