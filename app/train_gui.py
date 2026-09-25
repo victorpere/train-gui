@@ -1,5 +1,6 @@
 import os
 from time import time
+from typing import Tuple
 import tkinter as tk
 from tkinter import ttk
 from tkinter import filedialog as fd
@@ -254,37 +255,49 @@ class TrainController:
 
     def _on_event(self, name: str, value: object):
         def apply_event():
-            if name == "actual_voltage":
-                self.actual_voltage.set(abs(value))
-            elif name == "target_voltage":
-                self.target_voltage.set(abs(value))
+            if name == "component":
+                try:
+                    message: Message = value
+                    self._handle_component_event(message)
+                except Exception as exc:
+                    self.set_message("error", f"Error handling component event: {str(exc)}")
             elif name == "status":
                 txt = str(value).capitalize()
                 fg = "green" if str(value).lower() == "connected" else "red"
                 self.status_label.config(text=txt, foreground=fg)
-            elif name == "sensor":
-                print(f"Sensor event received: {value}")
-                if value == 1:
-                    self.sensor_message.set("TRAIN DETECTED")
-                    sensor_event_time = int(time() * 1000)
-
-                    if self._last_sensor_event_time != -1:
-                        elapsed_time = sensor_event_time - self._last_sensor_event_time
-                        print(f"Last lap time: {elapsed_time} ms")
-                        
-                        # speed in mm per second
-                        speed = self.layout.length / elapsed_time  # length per second
-
-                        # prototype speed in km/h
-                        prototype_speed = speed * self.layout.scale * 3.6  # convert mm/s to km/h
-
-                        self.set_message("info", f"Prototype speed: {prototype_speed:.1f} km/h")
-                    self._last_sensor_event_time = sensor_event_time
-                    def clear_message():
-                        self.sensor_message.set("")
-                    self.root.after(2000, clear_message)
 
         self.root.after(0, apply_event)
+
+    def _handle_component_event(self, message: Message) -> Tuple[bool, str]:
+        if message.device_type == DeviceType.ACTUAL_VOLTAGE:
+            self.actual_voltage.set(abs(message.value))
+        elif message.device_type == DeviceType.TARGET_VOLTAGE:
+            self.target_voltage.set(abs(message.value))
+        elif message.device_type == DeviceType.SENSOR:
+            print(f"Sensor event received: {message.value}")
+            if message.value == 1:
+                self.sensor_message.set("TRAIN DETECTED")
+                sensor_event_time = int(time() * 1000)
+
+                if self._last_sensor_event_time != -1:
+                    elapsed_time = sensor_event_time - self._last_sensor_event_time
+                    print(f"Last lap time: {elapsed_time} ms")
+                    
+                    # speed in mm per second
+                    speed = self.layout.length / elapsed_time  # length per second
+
+                    # prototype speed in km/h
+                    prototype_speed = speed * self.layout.scale * 3.6  # convert mm/s to km/h
+
+                    self.set_message("info", f"Prototype speed: {prototype_speed:.1f} km/h")
+                self._last_sensor_event_time = sensor_event_time
+                def clear_message():
+                    self.sensor_message.set("")
+                self.root.after(2000, clear_message)
+        else:
+            return False, "Unknown device"
+
+        return True, ""
 
 
 if __name__ == "__main__":

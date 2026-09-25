@@ -124,7 +124,9 @@ def test_track_write_and_read(fake_factory):
     fake_factory.last.inject_bytes(incoming_message)
     time.sleep(0.1)
 
-    assert any(e for e in events if e[0] == "actual_voltage" and e[1] == 13)
+    assert any(e for e in events if e[0] == "component" \
+               and e[1].device_type == DeviceType.ACTUAL_VOLTAGE \
+               and e[1].value == 13)
 
 def test_sensor_read(fake_factory):
     events = []
@@ -285,4 +287,4 @@ def test_duplicate_sensor_events(fake_factory):
 
     # sensor should still be ON and no duplicate events should be triggered
     assert sensor.on
-    assert events.count(("sensor", 1)) == 1
+    assert len(list(filter(lambda e: e[0] == "component" and e[1].device_type == DeviceType.SENSOR, events))) == 1
