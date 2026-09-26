@@ -131,8 +131,13 @@ class TrainController:
         self.build_ui()
 
     def build_ui(self):
+        self.left_frame = ttk.LabelFrame(self.root)
+        self.right_frame = ttk.LabelFrame(self.root)
+        self.left_frame.pack(side="left", fill="y")
+        self.right_frame.pack(side="right", fill="y")
+
         # Serial connection frame
-        conn_frame = ttk.LabelFrame(self.root, text="Serial Connection", padding=10)
+        conn_frame = ttk.LabelFrame(self.left_frame, text="Serial Connection", padding=10)
         conn_frame.pack(fill="x", padx=10, pady=5)
         
         ttk.Label(conn_frame, text="Port:").grid(row=0, column=0)
@@ -154,7 +159,7 @@ class TrainController:
                     self._build_speed_ui(component_id)
 
 
-        scenario_frame = ttk.LabelFrame(self.root, text="Scenario", padding=10)
+        scenario_frame = ttk.LabelFrame(self.left_frame, text="Scenario", padding=10)
         scenario_frame.pack(fill="x", padx=10, pady=5)
 
         self.scenario_open_button = ttk.Button(scenario_frame, text='Load from file', command=self.select_file)
@@ -173,7 +178,7 @@ class TrainController:
         self.scenario_step_label = ttk.Label(scenario_frame, textvariable=self.scenario_step)
         self.scenario_step_label.grid(row=2, column=1, columnspan=3, sticky="w", padx=5)
 
-        message_frame = ttk.LabelFrame(self.root, text="Messages", padding=10)
+        message_frame = ttk.LabelFrame(self.left_frame, text="Messages", padding=10)
         message_frame.pack(fill="x", padx=10, pady=5)
         self.message_label = ttk.Label(message_frame, text="")
         self.message_label.pack()
@@ -183,8 +188,8 @@ class TrainController:
         DASH_FONT = tkFont.Font(family="Menlo", size=30)
         speed_display = SpeedDisplay(speed_trap_id)
 
-        dash_frame = ttk.LabelFrame(self.root, text=f"Speed trap {speed_trap_id}", padding=10)
-        dash_frame.pack(fill="x", padx=10, pady=0)
+        dash_frame = ttk.LabelFrame(self.right_frame, text=f"Speed trap {speed_trap_id}", padding=10)
+        dash_frame.pack(side="top")
         
         speed_display.speed_label = ttk.Label(dash_frame, textvariable=speed_display.last_speed, font=DASH_FONT, width=5, justify=tk.CENTER)
         speed_display.speed_label.grid(row=0, column=0)
@@ -197,7 +202,7 @@ class TrainController:
         track_control = TrackControl(track_id, self.forward_message)
         self.controls[track_id] = track_control
 
-        track_frame = ttk.LabelFrame(self.root, text=f"Track {track_id}", padding=10)
+        track_frame = ttk.LabelFrame(self.left_frame, text=f"Track {track_id}", padding=10)
         track_frame.pack(fill="x", padx=10, pady=5)
 
         dash_frame = ttk.LabelFrame(track_frame, padding=0)
@@ -241,7 +246,7 @@ class TrainController:
         if self.layout.diagram_data is None:
             return
         try:
-            self.canvas = tk.Canvas(self.root, bg="lightgrey", width=600, height=300)
+            self.canvas = tk.Canvas(self.left_frame, bg="lightgrey", width=600, height=300)
             segments: list = self.layout.diagram_data.get("segments")
             for s in segments:
                 if s["shape"] == "line":
