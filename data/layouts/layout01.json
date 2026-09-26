@@ -1,8 +1,43 @@
 {
   "name": "Layout 1",
   "description": "Simple loop",
-  "length": 2680.5,
   "scale": 150.0,
+  "diagram": {
+    "segments": [
+      {
+        "shape": "line",
+        "x1": 200,
+        "y1": 50,
+        "x2": 400,
+        "y2": 50
+      },
+      {
+        "shape": "arc",
+        "x1": 300,
+        "y1": 50,
+        "x2": 500,
+        "y2": 250,
+        "start": -90,
+        "extent": 180
+      },
+      {
+        "shape": "line",
+        "x1": 400,
+        "y1": 250,
+        "x2": 200,
+        "y2": 250
+      },
+      {
+        "shape": "arc",
+        "x1": 100,
+        "y1": 50,
+        "x2": 300,
+        "y2": 250,
+        "start": 90,
+        "extent": 180
+      }
+    ]
+  },
   "tracks": [
     {
       "id": 1
@@ -20,7 +55,13 @@
       "id": 1,
       "track_id": 1,
       "block_f_id": 1,
-      "block_r_id": 1
+      "block_r_id": 1,
+      "diagram": {
+        "coordinates": {
+          "x": 400,
+          "y": 50
+        }
+      }
     }
   ],
   "points": [],

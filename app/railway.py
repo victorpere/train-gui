@@ -49,14 +49,15 @@ class Layout:
         self.name = ""
         self.description = ""
         self._listeners: List[Callback] = []
+        self.diagram_data = None
 
     def load(self, layout_data: dict) -> Tuple[bool, str]:
         """Creates layout and components from a dictionary definition"""
         try:
             self.name = layout_data.get("name", "n/a")
             self.description = layout_data.get("description", "n/a")
-            self.length: float = layout_data.get("length", 0)
             self.scale: float = layout_data.get("scale", 0)
+            self.diagram_data: dict = layout_data.get("diagram")
             tracks = layout_data.get("tracks", [])
             blocks = layout_data.get("blocks", [])
             sensors = layout_data.get("sensors", [])
@@ -67,7 +68,7 @@ class Layout:
                 self.components[device_type_name] = dict()
 
             for track_data in tracks:
-                track = Track(track_data.get("id"), self._on_component_event)
+                track = Track(track_data.get("id"), self._on_component_event, diagram_data=track_data.get("diagram"))
                 self.components[DeviceType.TARGET_VOLTAGE.name][track.id] = track
                 self.components[DeviceType.ACTUAL_VOLTAGE.name][track.id] = track
 
@@ -79,7 +80,7 @@ class Layout:
                 track = self.components[DeviceType.TARGET_VOLTAGE.name][sensor_data.get("track_id")]
                 block_f = self.components[DeviceType.BLOCK.name][sensor_data.get("block_f_id")]
                 block_r = self.components[DeviceType.BLOCK.name][sensor_data.get("block_r_id")]
-                sensor = Sensor(sensor_data.get("id"), track, block_f, block_r, self._on_component_event)
+                sensor = Sensor(sensor_data.get("id"), track, block_f, block_r, self._on_component_event, sensor_data.get("diagram"))
                 self.components[DeviceType.SENSOR.name][sensor.id] = sensor
 
             for speed_trap_data in speed_traps:
@@ -188,11 +189,12 @@ class Track:
     """Encapsulates track voltage control.
     """
 
-    def __init__(self, id: int, cb: Callback):
+    def __init__(self, id: int, cb: Callback, diagram_data: dict = None):
         self.id = id
         self._target_voltage = 0
         self._actual_voltage = 0
         self._cb = cb
+        self.diagram_data = diagram_data
 
     @property
     def actual_direction(self):
@@ -276,12 +278,13 @@ class Sensor:
     """
 
     def __init__(self, id: int, track: Track, block_f: Block, block_r: Block, \
-                 cb: Callback):
+                 cb: Callback, diagram_data: dict = None):
         self.id = id
         self._track = track
         self._block_f: Block = block_f
         self._block_r: Block = block_r
         self._cb = cb
+        self.diagram_data = diagram_data
         self._on: bool = False
         self.ON_THRESHOLD = 1
 

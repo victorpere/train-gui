@@ -238,13 +238,20 @@ class TrainController:
         track_control.message_label.pack()
 
     def _build_diagram(self):
-        self.canvas = tk.Canvas(self.root, bg="lightgrey", width=600, height=300)
-        seg1 = self.canvas.create_line(200, 50, 400, 50, width=2)
-        seg2 = self.canvas.create_arc(300, 50, 500, 250, start=-90, extent=180, style=tk.ARC, width=2)
-        seg3 = self.canvas.create_line(400, 250, 200, 250, width=2)
-        seg4 = self.canvas.create_arc(100, 50, 300, 250, start=90, extent=180, style=tk.ARC, width=2)
-        self.sensor1_indicator = self.canvas.create_oval(390, 40, 410, 60, fill="white")
-        self.canvas.pack()
+        if self.layout.diagram_data is None:
+            return
+        try:
+            self.canvas = tk.Canvas(self.root, bg="lightgrey", width=600, height=300)
+            segments: list = self.layout.diagram_data.get("segments")
+            for s in segments:
+                if s["shape"] == "line":
+                    self.canvas.create_line(s["x1"], s["y1"], s["x2"], s["y2"], width=2)
+                elif s["shape"] == "arc":
+                    self.canvas.create_arc(s["x1"], s["y1"], s["x2"], s["y2"], start=s["start"], extent=s["extent"], style=tk.ARC, width=2)
+            self.sensor1_indicator = self.canvas.create_oval(390, 40, 410, 60, fill="white")
+            self.canvas.pack()
+        except Exception as exc:
+            print(f"Error drawing diagram: {str(exc)}")
 
     def select_file(self):
         filepath = fd.askopenfilename(title='Open a file', initialdir=os.path.join("data", "scenarios"), filetypes=[('JSON files', '*.json')])
