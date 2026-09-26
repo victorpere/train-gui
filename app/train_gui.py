@@ -1,6 +1,6 @@
 import os
 from time import time
-from typing import Tuple
+from typing import Tuple, Protocol
 import tkinter as tk
 from tkinter import ttk
 from tkinter import filedialog as fd
@@ -9,6 +9,87 @@ import tkinter.font as tkFont
 from scenario import ScenarioRunner, ScenarioState, ScenarioStatus
 from railway import Layout, Message, MessageType, DeviceType
 from communication import Communicator
+
+
+class ControllerCallback(Protocol):
+    def __call__(self, message: Message) -> Tuple[bool, str]: ...
+
+
+class TrackControl:
+    """Encapsulates UI controls for a track"""
+
+    track_id: int
+    direction: tk.IntVar
+    target_voltage: tk.IntVar
+    actual_voltage: tk.IntVar
+    direction_label: ttk.Label
+    target_voltage_label: ttk.Label
+    actual_voltage_label: ttk.Label
+    reverse_button: ttk.Button
+    forward_button: ttk.Button
+    control_buttons: list[ttk.Button]
+    message_label: ttk.Label
+
+    def __init__(self, track_id: int, callback: ControllerCallback):
+        self.track_id = track_id
+        self.direction = tk.IntVar(value=1)
+        self.target_voltage = tk.IntVar(value=0)
+        self.actual_voltage = tk.IntVar(value=0)
+        self.callback = callback
+
+    def reset_buttons(self):
+        for btn in self.control_buttons:
+            btn.config(state="normal")
+
+    def set_voltage(self, voltage: int, button_pressed: Button):
+        self.set_message()
+        directional_voltage = voltage * self.direction.get()
+
+        message = Message(
+            message_type = MessageType.SET,
+            device_type = DeviceType.TARGET_VOLTAGE,
+            device_id = self.track_id,
+            value = directional_voltage
+        )
+
+        ok, msg = self.callback(message)
+
+        if ok:
+            self.target_voltage.set(voltage)
+            self.reset_buttons()
+            button_pressed.config(state="disabled")
+        else:
+            self.set_message("error", msg)
+            self.reset_buttons()
+        
+    def set_forward(self):  
+        self.set_message()
+        if self.direction.get() == 1:
+            self.set_message("info", "Already moving forward")
+            return
+        self.direction.set(1)
+        self.forward_button.config(state="disabled")
+        self.reverse_button.config(state="normal")
+
+    def set_reverse(self):
+        self.set_message()
+        if self.direction.get() == -1:
+            self.set_message("info", "Already moving reverse")
+            return
+        self.direction.set(-1)
+        self.reverse_button.config(state="disabled")
+        self.forward_button.config(state="normal")
+
+    def set_message(self, level="", message=""):
+        """Display a track control message with a given level (info, warning, error)."""
+        if level == "info":
+            self.message_label.config(text=message, foreground="")
+        elif level == "warning":
+            self.message_label.config(text=message, foreground="orange")
+        elif level == "error":
+            self.message_label.config(text=message, foreground="red")
+        else:
+            self.message_label.config(text=message, foreground="")
 
 
 class TrainController:
@@ -26,14 +107,6 @@ class TrainController:
             return
 
         self.buttons_data = buttons_data or []
-        self.direction = tk.IntVar()
-        self.direction.set(1)
-
-        self.target_voltage = tk.IntVar()
-        self.target_voltage.set(0)
-
-        self.actual_voltage = tk.IntVar()
-        self.actual_voltage.set(0)
 
         self.sensor_message = tk.StringVar()
         self.sensor_message.set("")
@@ -44,6 +117,8 @@ class TrainController:
         self.scenario_name = tk.StringVar()
         self.scenario_status = tk.StringVar(value="")
         self.scenario_step = tk.StringVar(value="")
+
+        self.controls: dict[int, TrackControl] = {}
 
         self.build_ui()
 
@@ -61,40 +136,12 @@ class TrainController:
         self.status_label = ttk.Label(conn_frame, text="Disconnected", foreground="red")
         self.status_label.grid(row=0, column=3)       
 
-        dash_font = tkFont.Font(family="Menlo", size=30)
-        dash_frame = ttk.LabelFrame(self.root, text="Voltage", padding=10)
-        dash_frame.pack(fill="x", padx=10, pady=5)
-        ttk.Label(dash_frame, text="Direction").grid(row=0, column=0)
-        ttk.Label(dash_frame, text="Target").grid(row=0, column=1)
-        ttk.Label(dash_frame, text="Actual").grid(row=0, column=2)
-        self.direction_label = ttk.Label(dash_frame, textvariable=self.direction, font=dash_font, width=3, justify=tk.CENTER)
-        self.direction_label.grid(row=1, column=0, padx=5)
-        self.target_voltage_label = ttk.Label(dash_frame, textvariable=self.target_voltage, font=dash_font, width=3, justify=tk.RIGHT)
-        self.target_voltage_label.grid(row=1, column=1, padx=5)
-        self.actual_voltage_label = ttk.Label(dash_frame, textvariable=self.actual_voltage, font=dash_font, width=3, justify=tk.RIGHT)
-        self.actual_voltage_label.grid(row=1, column=2, padx=5)
-        self.sensor_label = ttk.Label(dash_frame, textvariable=self.sensor_message, font=dash_font, foreground="red")
-        self.sensor_label.grid(row=1, column=3, padx=5)
 
-        control_frame = ttk.LabelFrame(self.root, text="Control", padding=10)
-        control_frame.pack(fill="x", padx=10, pady=5)
+        for device_type_name, component_list in self.layout.components.items():
+            if device_type_name == DeviceType.TARGET_VOLTAGE.name:
+                for component_id in component_list:
+                    self._build_control_ui(component_id)
 
-        self.reverse_button = ttk.Button(control_frame, text="◀ REV", state="normal", command=self.set_reverse)
-        self.reverse_button.grid(row=0, column=0, padx=2)
-        self.forward_button = ttk.Button(control_frame, text="FWD ▶", state="disabled", command=self.set_forward)
-        self.forward_button.grid(row=0, column=1, padx=2)
-
-        self.control_buttons = []
-        try:
-            for idx, button in enumerate(self.buttons_data):
-                voltage = button.get("value", 0)
-                label = button.get("label", str(voltage))
-                btn = ttk.Button(control_frame, text=label)
-                btn.grid(row=1, column=idx, padx=2)
-                self.control_buttons.append(btn)
-                btn.config(command=lambda v=voltage, b=btn: self.set_voltage(v, b))
-        except Exception as e:
-            print(f"Error building control buttons: {e}")
 
         scenario_frame = ttk.LabelFrame(self.root, text="Scenario", padding=10)
         scenario_frame.pack(fill="x", padx=10, pady=5)
@@ -119,6 +166,50 @@ class TrainController:
         message_frame.pack(fill="x", padx=10, pady=5)
         self.message_label = ttk.Label(message_frame, text="")
         self.message_label.pack()
+
+
+    def _build_control_ui(self, track_id: int):
+        DASH_FONT = tkFont.Font(family="Menlo", size=30)
+        track_control = TrackControl(track_id, self.forward_message)
+        self.controls[track_id] = track_control
+
+        dash_frame = ttk.LabelFrame(self.root, text=f"Track {track_id}", padding=10)
+        dash_frame.pack(fill="x", padx=10, pady=5)
+        ttk.Label(dash_frame, text="Direction").grid(row=0, column=0)
+        ttk.Label(dash_frame, text="Target").grid(row=0, column=1)
+        ttk.Label(dash_frame, text="Actual").grid(row=0, column=2)
+        track_control.direction_label = ttk.Label(dash_frame, textvariable=track_control.direction, font=DASH_FONT, width=3, justify=tk.CENTER)
+        track_control.direction_label.grid(row=1, column=0, padx=5)
+        track_control.target_voltage_label = ttk.Label(dash_frame, textvariable=track_control.target_voltage, font=DASH_FONT, width=3, justify=tk.RIGHT)
+        track_control.target_voltage_label.grid(row=1, column=1, padx=5)
+        track_control.actual_voltage_label = ttk.Label(dash_frame, textvariable=track_control.actual_voltage, font=DASH_FONT, width=3, justify=tk.RIGHT)
+        track_control.actual_voltage_label.grid(row=1, column=2, padx=5)
+
+        control_frame = ttk.LabelFrame(self.root, text="", padding=10)
+        control_frame.pack(fill="x", padx=10, pady=5)
+
+        track_control.reverse_button = ttk.Button(control_frame, text="◀ REV", state="normal", command=track_control.set_reverse)
+        track_control.reverse_button.grid(row=0, column=0, padx=2)
+        track_control.forward_button = ttk.Button(control_frame, text="FWD ▶", state="disabled", command=track_control.set_forward)
+        track_control.forward_button.grid(row=0, column=1, padx=2)
+
+        track_control.control_buttons = []
+        try:
+            for idx, button in enumerate(self.buttons_data):
+                voltage = button.get("value", 0)
+                label = button.get("label", str(voltage))
+                btn = ttk.Button(control_frame, text=label)
+                btn.grid(row=1, column=idx, padx=2)
+                track_control.control_buttons.append(btn)
+                btn.config(command=lambda v=voltage, b=btn: track_control.set_voltage(v, b))
+        except Exception as e:
+            print(f"Error building control buttons: {e}")
+
+        message_frame = ttk.LabelFrame(self.root, text=f"Track {track_id} messages", padding=10)
+        message_frame.pack(fill="x", padx=10, pady=5)
+        track_control.message_label = ttk.Label(message_frame, text="")
+        track_control.message_label.pack()
+
 
     def select_file(self):
         filepath = fd.askopenfilename(title='Open a file', initialdir=os.path.join("data", "scenarios"), filetypes=[('JSON files', '*.json')])
@@ -171,44 +262,6 @@ class TrainController:
             self.connect_button.config(state="normal")
             self.set_message("error", str(e))
 
-    def set_voltage(self, voltage, button_pressed: Button):
-        self.set_message()
-        directional_voltage = voltage * self.direction.get()
-
-        message = Message(
-            message_type = MessageType.SET,
-            device_type = DeviceType.TARGET_VOLTAGE,
-            device_id = 1,
-            value = directional_voltage
-        )
-
-        ok, msg = self.layout.command(message)
-
-        if ok:
-            self.target_voltage.set(voltage)
-            self.reset_buttons()
-            button_pressed.config(state="disabled")
-        else:
-            self.set_message("error", msg)
-            self.reset_buttons()
-        
-    def set_forward(self):
-        self.set_message()
-        if self.direction.get() == 1:
-            self.set_message("info", "Already moving forward")
-            return
-        self.direction.set(1)
-        self.forward_button.config(state="disabled")
-        self.reverse_button.config(state="normal")
-
-    def set_reverse(self):
-        self.set_message()
-        if self.direction.get() == -1:
-            self.set_message("info", "Already moving reverse")
-            return
-        self.direction.set(-1)
-        self.reverse_button.config(state="disabled")
-        self.forward_button.config(state="normal")
 
     def set_message(self, level="", message=""):
         """Display a message in the message label with a given level (info, warning, error)."""
@@ -221,9 +274,7 @@ class TrainController:
         else:
             self.message_label.config(text=message, foreground="")
 
-    def reset_buttons(self):
-        for btn in self.control_buttons:
-            btn.config(state="normal")
+    
 
     def _on_scenario_event(self, name, value):
         def apply_event():
@@ -270,9 +321,19 @@ class TrainController:
 
     def _handle_component_event(self, message: Message) -> Tuple[bool, str]:
         if message.device_type == DeviceType.ACTUAL_VOLTAGE:
-            self.actual_voltage.set(abs(message.value))
+            control = self.controls.get(message.device_id)
+            if not control is None:
+                control.actual_voltage.set(abs(message.value))
+            else:
+                self.set_message("error", f"Unknown track id: {message}")
+                return False, "Unknown device id"
         elif message.device_type == DeviceType.TARGET_VOLTAGE:
-            self.target_voltage.set(abs(message.value))
+            control = self.controls.get(message.device_id)
+            if not control is None:
+                control.target_voltage.set(abs(message.value))
+            else:
+                self.set_message("error", f"Unknown track id: {message}")
+                return False, "Unknown device id"
         elif message.device_type == DeviceType.SENSOR:
             print(f"Sensor event received: {message.value}")
             if message.value == 1:
@@ -290,9 +351,12 @@ class TrainController:
                     self.set_message("info", f"Prototype speed: {prototype_speed:.1f} km/h")
                 self._last_sensor_event_time = sensor_event_time
         else:
-            return False, "Unknown device"
+            return False, "Unknown device type"
 
         return True, ""
+
+    def forward_message(self, message: Message) -> Tuple[bool, str]:
+        return self.layout.command(message)
 
 
 if __name__ == "__main__":
