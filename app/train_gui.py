@@ -1,5 +1,4 @@
 import os
-from time import time
 from typing import Tuple, Protocol
 import tkinter as tk
 from tkinter import ttk
@@ -13,6 +12,17 @@ from communication import Communicator
 
 class ControllerCallback(Protocol):
     def __call__(self, message: Message) -> Tuple[bool, str]: ...
+
+
+class SpeedDisplay:
+    speed_trap_id: int
+    track_id: int
+    last_speed: tk.DoubleVar
+    speed_label: ttk.Label
+
+    def __init__(self, speed_trap_id: int):
+        self.speed_trap_id = speed_trap_id
+        self.last_speed = tk.DoubleVar(value=0)
 
 
 class TrackControl:
@@ -97,6 +107,7 @@ class TrainController:
         self.root = root
         self.root.title("N-Scale Train Controller")
 
+        self.port_var = tk.StringVar(value="/dev/cu.usbmodem101")  # Mac default; change as needed
         communicator = Communicator()
         self.layout = Layout(communicator)
         self.layout.add_listener(self._on_event)
@@ -108,10 +119,6 @@ class TrainController:
 
         self.buttons_data = buttons_data or []
 
-        self.sensor_message = tk.StringVar()
-        self.sensor_message.set("")
-        self._last_sensor_event_time = -1
-
         self.scenario_runner = ScenarioRunner(layout=self.layout)
         self.scenario_runner.add_listener(self._on_scenario_event)
         self.scenario_name = tk.StringVar()
@@ -119,6 +126,7 @@ class TrainController:
         self.scenario_step = tk.StringVar(value="")
 
         self.controls: dict[int, TrackControl] = {}
+        self.speed_displays: dict[int, SpeedDisplay] = {}
 
         self.build_ui()
 
@@ -128,7 +136,6 @@ class TrainController:
         conn_frame.pack(fill="x", padx=10, pady=5)
         
         ttk.Label(conn_frame, text="Port:").grid(row=0, column=0)
-        self.port_var = tk.StringVar(value="/dev/cu.usbmodem1301")  # Mac default; change as needed
         ttk.Entry(conn_frame, textvariable=self.port_var, width=20).grid(row=0, column=1)
         
         self.connect_button = ttk.Button(conn_frame, text="Connect", command=self.connect_serial)
@@ -141,6 +148,9 @@ class TrainController:
             if device_type_name == DeviceType.TARGET_VOLTAGE.name:
                 for component_id in component_list:
                     self._build_control_ui(component_id)
+            if device_type_name == DeviceType.SPEED.name:
+                for component_id in component_list:
+                    self._build_speed_ui(component_id)
 
 
         scenario_frame = ttk.LabelFrame(self.root, text="Scenario", padding=10)
@@ -166,6 +176,19 @@ class TrainController:
         message_frame.pack(fill="x", padx=10, pady=5)
         self.message_label = ttk.Label(message_frame, text="")
         self.message_label.pack()
+
+
+    def _build_speed_ui(self, speed_trap_id: int):
+        DASH_FONT = tkFont.Font(family="Menlo", size=30)
+        speed_display = SpeedDisplay(speed_trap_id)
+
+        dash_frame = ttk.LabelFrame(self.root, text=f"Speed trap {speed_trap_id}", padding=10)
+        dash_frame.pack(fill="x", padx=10, pady=0)
+        
+        speed_display.speed_label = ttk.Label(dash_frame, textvariable=speed_display.last_speed, font=DASH_FONT, width=5, justify=tk.CENTER)
+        speed_display.speed_label.grid(row=0, column=0)
+        ttk.Label(dash_frame, text="km/h", width=5, justify=tk.LEFT).grid(row=1, column=0)
+        self.speed_displays[speed_trap_id] = speed_display
 
 
     def _build_control_ui(self, track_id: int):
@@ -337,22 +360,13 @@ class TrainController:
             else:
                 self.set_message("error", f"Unknown track id: {message}")
                 return False, "Unknown device id"
+        elif message.device_type == DeviceType.SPEED:
+            speed_display = self.speed_displays.get(message.device_id)
+            if not speed_display is None:
+                speed: float = float(message.value) * self.layout.scale * 0.0036 # convert to scale in km/h
+                speed_display.last_speed.set(speed)
         elif message.device_type == DeviceType.SENSOR:
-            print(f"Sensor event received: {message.value}")
-            if message.value == 1:
-                sensor_event_time = int(time() * 1000)
-                if self._last_sensor_event_time != -1:
-                    elapsed_time = sensor_event_time - self._last_sensor_event_time
-                    print(f"Last lap time: {elapsed_time} ms")
-                    
-                    # speed in mm per second
-                    speed = self.layout.length / elapsed_time  # length per second
-
-                    # prototype speed in km/h
-                    prototype_speed = speed * self.layout.scale * 3.6  # convert mm/s to km/h
-
-                    self.set_message("info", f"Prototype speed: {prototype_speed:.1f} km/h")
-                self._last_sensor_event_time = sensor_event_time
+            pass
         else:
             return False, "Unknown device type"
 

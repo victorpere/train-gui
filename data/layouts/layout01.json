@@ -23,5 +23,14 @@
       "block_r_id": 1
     }
   ],
-  "points": []
+  "points": [],
+  "speed_traps": [
+    {
+      "id": 1,
+      "track_id": 1,
+      "sensor_1_id": 1,
+      "sensor_2_id": 1,
+      "distance": 2680.5
+    }
+  ]
 }

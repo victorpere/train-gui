@@ -1,3 +1,4 @@
+from time import time
 from pydantic import BaseModel
 from typing import List, Tuple, Protocol, overload
 from enum import Enum
@@ -16,6 +17,7 @@ class DeviceType(Enum):
     SENSOR = 3
     POINT = 4
     SIGNAL = 5
+    SPEED = 10
 
 
 class Message(BaseModel):
@@ -58,6 +60,7 @@ class Layout:
             tracks = layout_data.get("tracks", [])
             blocks = layout_data.get("blocks", [])
             sensors = layout_data.get("sensors", [])
+            speed_traps = layout_data.get("speed_traps", [])
 
             for device_type_name, _ in DeviceType.__members__.items():
                 """Add all device types to components"""
@@ -78,6 +81,16 @@ class Layout:
                 block_r = self.components[DeviceType.BLOCK.name][sensor_data.get("block_r_id")]
                 sensor = Sensor(sensor_data.get("id"), track, block_f, block_r, self._on_component_event)
                 self.components[DeviceType.SENSOR.name][sensor.id] = sensor
+
+            for speed_trap_data in speed_traps:
+                speed_trap = SpeedTrap(id=speed_trap_data.get("id"), \
+                                       track_id=speed_trap_data.get("track_id"), \
+                                       sensor_1_id=speed_trap_data.get("sensor_1_id"), \
+                                       sensor_2_id=speed_trap_data.get("sensor_2_id"), \
+                                       distance=speed_trap_data.get("distance"), \
+                                       cb=self._on_component_event)
+                self.add_listener(speed_trap.receive_component_event)
+                self.components[DeviceType.SPEED.name][speed_trap.id] = speed_trap
 
             return True, ""
 
@@ -313,3 +326,40 @@ class Sensor:
             self._block_f.occupied = False
             self._block_r.occupied = True
         return True, ""
+
+
+class SpeedTrap:
+    def __init__(self, id: int, track_id: int, sensor_1_id: int, sensor_2_id: int, distance: float, cb: Callback):
+        self.id = id
+        self.track_id = track_id
+        self._sensor_1_id = sensor_1_id
+        self._sensor_2_id = sensor_2_id
+        self._distance = distance
+        self._cb = cb
+        self._last_sensor_1_event_time = -1
+        self._last_sensor_2_event_time = -1
+        self._last_speed = 0
+
+    def process_message(self, message: Message) -> Tuple[bool, str]:
+        return False, ""
+
+    def receive_component_event(self, name: str, value: object):
+        if name != "component":
+            return
+        message: Message = value
+        if message.device_type == DeviceType.SENSOR and message.message_type == MessageType.SET and message.value == 1:
+            event_time = int(time() * 1000)
+            if message.device_id == self._sensor_2_id:
+                self._last_sensor_2_event_time = event_time
+                if self._last_sensor_1_event_time > 0:
+                    elapsed_time = self._last_sensor_2_event_time - self._last_sensor_1_event_time
+                    self._last_speed = self._distance / elapsed_time
+                    cb_message = Message(
+                        message_type=MessageType.SET,
+                        device_type=DeviceType.SPEED,
+                        device_id=self.id,
+                        value=int(self._last_speed * 1000)
+                    )
+                    self._cb(cb_message)
+            if message.device_id == self._sensor_1_id:
+                self._last_sensor_1_event_time = event_time
