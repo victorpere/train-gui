@@ -143,6 +143,7 @@ class TrainController:
         self.status_label = ttk.Label(conn_frame, text="Disconnected", foreground="red")
         self.status_label.grid(row=0, column=3)       
 
+        self._build_diagram()
 
         for device_type_name, component_list in self.layout.components.items():
             if device_type_name == DeviceType.TARGET_VOLTAGE.name:
@@ -236,6 +237,14 @@ class TrainController:
         track_control.message_label = ttk.Label(message_frame, text="")
         track_control.message_label.pack()
 
+    def _build_diagram(self):
+        self.canvas = tk.Canvas(self.root, bg="lightgrey", width=600, height=300)
+        seg1 = self.canvas.create_line(200, 50, 400, 50, width=2)
+        seg2 = self.canvas.create_arc(300, 50, 500, 250, start=-90, extent=180, style=tk.ARC, width=2)
+        seg3 = self.canvas.create_line(400, 250, 200, 250, width=2)
+        seg4 = self.canvas.create_arc(100, 50, 300, 250, start=90, extent=180, style=tk.ARC, width=2)
+        self.sensor1_indicator = self.canvas.create_oval(390, 40, 410, 60, fill="white")
+        self.canvas.pack()
 
     def select_file(self):
         filepath = fd.askopenfilename(title='Open a file', initialdir=os.path.join("data", "scenarios"), filetypes=[('JSON files', '*.json')])
@@ -366,7 +375,12 @@ class TrainController:
                 speed: float = float(message.value) * self.layout.scale * 0.0036 # convert to scale in km/h
                 speed_display.last_speed.set(speed)
         elif message.device_type == DeviceType.SENSOR:
-            pass
+            if message.value == 1:
+                self.canvas.itemconfig(self.sensor1_indicator, fill="red")
+            elif message.value == 0:
+                def sensor_indicator_off():
+                    self.canvas.itemconfig(self.sensor1_indicator, fill="white")
+                self.root.after(100, sensor_indicator_off)
         else:
             return False, "Unknown device type"
 
