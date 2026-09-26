@@ -45,7 +45,7 @@ class Layout:
     def __init__(self, communicator: Communicator):
         self.communicator = communicator
         self.communicator.add_listener(self._on_communication_event)
-        self.components: dict = {}
+        self.components: dict[str, dict[int, LayoutComponent]] = {}
         self.name = ""
         self.description = ""
         self._listeners: List[Callback] = []
@@ -104,8 +104,8 @@ class Layout:
 
     def command(self, message: Message) -> Tuple[bool, str]:
         """Processes command to component"""
-        target_type_components: dict = self.components.get(message.device_type.name, {})
-        target_component: LayoutComponent = target_type_components.get(message.device_id)
+        target_type_components = self.components.get(message.device_type.name, {})
+        target_component = target_type_components.get(message.device_id)
 
         if target_component == None:
             print(f"device not foud: {message.device_type.name}:{message.device_id}")
@@ -114,7 +114,7 @@ class Layout:
 
     def stop_all(self):
         """Sets target voltage to 0 on all tracks"""
-        target_voltage_devices: dict = self.components.get(DeviceType.TARGET_VOLTAGE.name)
+        target_voltage_devices = self.components.get(DeviceType.TARGET_VOLTAGE.name)
         for target_voltage_device in target_voltage_devices.values():
             track: Track = target_voltage_device
             ok, msg = track.set_voltage(0)
