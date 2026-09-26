@@ -1,4 +1,4 @@
-from time import time
+from time import monotonic
 from pydantic import BaseModel
 from typing import List, Tuple, Protocol, overload
 from enum import Enum
@@ -348,7 +348,7 @@ class SpeedTrap:
             return
         message: Message = value
         if message.device_type == DeviceType.SENSOR and message.message_type == MessageType.SET and message.value == 1:
-            event_time = int(time() * 1000)
+            event_time = int(monotonic() * 1000)
             if message.device_id == self._sensor_2_id:
                 self._last_sensor_2_event_time = event_time
                 if self._last_sensor_1_event_time > 0:
