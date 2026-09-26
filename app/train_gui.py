@@ -173,8 +173,11 @@ class TrainController:
         track_control = TrackControl(track_id, self.forward_message)
         self.controls[track_id] = track_control
 
-        dash_frame = ttk.LabelFrame(self.root, text=f"Track {track_id}", padding=10)
-        dash_frame.pack(fill="x", padx=10, pady=5)
+        track_frame = ttk.LabelFrame(self.root, text=f"Track {track_id}", padding=10)
+        track_frame.pack(fill="x", padx=10, pady=5)
+
+        dash_frame = ttk.LabelFrame(track_frame, padding=0)
+        dash_frame.pack(fill="x", padx=0, pady=0)
         ttk.Label(dash_frame, text="Direction").grid(row=0, column=0)
         ttk.Label(dash_frame, text="Target").grid(row=0, column=1)
         ttk.Label(dash_frame, text="Actual").grid(row=0, column=2)
@@ -185,8 +188,8 @@ class TrainController:
         track_control.actual_voltage_label = ttk.Label(dash_frame, textvariable=track_control.actual_voltage, font=DASH_FONT, width=3, justify=tk.RIGHT)
         track_control.actual_voltage_label.grid(row=1, column=2, padx=5)
 
-        control_frame = ttk.LabelFrame(self.root, text="", padding=10)
-        control_frame.pack(fill="x", padx=10, pady=5)
+        control_frame = ttk.LabelFrame(track_frame, padding=0)
+        control_frame.pack(fill="x", padx=0, pady=0)
 
         track_control.reverse_button = ttk.Button(control_frame, text="◀ REV", state="normal", command=track_control.set_reverse)
         track_control.reverse_button.grid(row=0, column=0, padx=2)
@@ -205,8 +208,8 @@ class TrainController:
         except Exception as e:
             print(f"Error building control buttons: {e}")
 
-        message_frame = ttk.LabelFrame(self.root, text=f"Track {track_id} messages", padding=10)
-        message_frame.pack(fill="x", padx=10, pady=5)
+        message_frame = ttk.LabelFrame(track_frame, padding=0)
+        message_frame.pack(fill="x", padx=0, pady=0)
         track_control.message_label = ttk.Label(message_frame, text="")
         track_control.message_label.pack()
 
