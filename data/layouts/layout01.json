@@ -5,11 +5,15 @@
   "diagram": {
     "segments": [
       {
-        "shape": "line",
-        "x1": 200,
-        "y1": 50,
-        "x2": 400,
-        "y2": 50
+        "shape": "straight",
+        "start_point": {
+          "x": 200,
+          "y": 50
+        },
+        "end_point": {
+          "x": 400,
+          "y": 50
+        }
       },
       {
         "shape": "curve",
@@ -25,11 +29,15 @@
         "extent": 180
       },
       {
-        "shape": "line",
-        "x1": 400,
-        "y1": 250,
-        "x2": 200,
-        "y2": 250
+        "shape": "straight",
+        "start_point": {
+          "x": 400,
+          "y": 250
+        },
+        "end_point": {
+          "x": 200,
+          "y": 250
+        }
       },
       {
         "shape": "curve",

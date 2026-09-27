@@ -253,8 +253,8 @@ class TrainController:
             self.canvas = tk.Canvas(self.left_frame, width=600, height=300)
             segments: list = self.layout.diagram_data.get("segments")
             for s in segments:
-                if s["shape"] == "line":
-                    self.canvas.create_line(s["x1"], s["y1"], s["x2"], s["y2"], width=2)
+                if s["shape"] == "straight":
+                    self.canvas.create_line(s["start_point"]["x"], s["start_point"]["y"], s["end_point"]["x"], s["end_point"]["y"], width=2)
                 elif s["shape"] == "curve":
                     p = diagram_helper.curve_to_tkinter_arc(s)
                     self.canvas.create_arc(p["x1"], p["y1"], p["x2"], p["y2"], start=p["start"], extent=p["extent"], style=tk.ARC, width=2)
