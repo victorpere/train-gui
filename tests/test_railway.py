@@ -1,15 +1,14 @@
+from fake_serial import FakeSerial
+from util import encode_message
+from railway import Layout, DeviceType, Message, MessageType, Sensor, Block, Track, SpeedTrap
+from communication import Communicator
+import pytest
 import os
 import sys
 import time
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../app")))
-
-import pytest
-
-from communication import Communicator
-from railway import Layout, DeviceType, Message, MessageType, Sensor, Block, Track
-from util import encode_message
-from fake_serial import FakeSerial
+sys.path.insert(0, os.path.abspath(
+    os.path.join(os.path.dirname(__file__), "../app")))
 
 
 @pytest.fixture
@@ -47,6 +46,15 @@ layout_data = {
             "block_f_id": 1,
             "block_r_id": 2
         }
+    ],
+    "speed_traps": [
+        {
+            "id": 1,
+            "track_id": 1,
+            "sensor_1_id": 1,
+            "sensor_2_id": 1,
+            "distance": 10
+        }
     ]
 }
 
@@ -60,10 +68,10 @@ def test_layout_invalid_command(fake_factory):
     assert ok, f"Connect failed: {msg}"
 
     invalid_message = Message(
-        message_type = MessageType.SET,
-        device_type = DeviceType.TARGET_VOLTAGE,
-        device_id = 999,  # non-existent device
-        value = 42
+        message_type=MessageType.SET,
+        device_type=DeviceType.TARGET_VOLTAGE,
+        device_id=999,  # non-existent device
+        value=42
     )
 
     ok, msg = layout.command(invalid_message)
@@ -86,10 +94,10 @@ def test_track_write_and_read(fake_factory):
     assert ok, f"Connect failed: {msg}"
 
     set_target_voltage_message = Message(
-        message_type = MessageType.SET,
-        device_type = DeviceType.TARGET_VOLTAGE,
-        device_id = 1,
-        value = 42
+        message_type=MessageType.SET,
+        device_type=DeviceType.TARGET_VOLTAGE,
+        device_id=1,
+        value=42
     )
 
     ok, msg = layout.command(set_target_voltage_message)
@@ -100,7 +108,7 @@ def test_track_write_and_read(fake_factory):
 
     written = getattr(fake_factory, "last").written
     assert written, "No write occurred"
-    
+
     # Verify the written data is a 3-byte encoded message
     # message_type=1, device_type=1 (target voltage), device_id=1, value=42
     message = {
@@ -124,13 +132,14 @@ def test_track_write_and_read(fake_factory):
     fake_factory.last.inject_bytes(incoming_message)
     time.sleep(0.1)
 
-    assert any(e for e in events if e[0] == "component" \
-               and e[1].device_type == DeviceType.ACTUAL_VOLTAGE \
+    assert any(e for e in events if e[0] == "component"
+               and e[1].device_type == DeviceType.ACTUAL_VOLTAGE
                and e[1].value == 13)
+
 
 def test_sensor_read(fake_factory):
     events = []
-    
+
     def listener(name, value):
         events.append((name, value))
 
@@ -171,8 +180,10 @@ def test_sensor_read(fake_factory):
 
     assert not sensor.on
 
+
 def test_block_occupied_update(fake_factory):
     events = []
+
     def listener(name, value):
         events.append((name, value))
 
@@ -196,10 +207,10 @@ def test_block_occupied_update(fake_factory):
     assert blcok_r.occupied
 
     track_set_target_voltage_message: Message = Message(
-        message_type = MessageType.SET,
-        device_type = DeviceType.TARGET_VOLTAGE,
-        device_id = 1,
-        value = 12
+        message_type=MessageType.SET,
+        device_type=DeviceType.TARGET_VOLTAGE,
+        device_id=1,
+        value=12
     )
 
     # send the command to set the track's target voltage in the forward direction
@@ -217,7 +228,7 @@ def test_block_occupied_update(fake_factory):
     incoming_message = encode_message(message)
     fake_factory.last.inject_bytes(incoming_message)
     time.sleep(0.1)
-    
+
     assert track.actual_direction == 1
 
     # inject an incoming 3-byte message to turn sensor "ON"
@@ -252,8 +263,10 @@ def test_block_occupied_update(fake_factory):
     assert block_f.occupied
     assert not blcok_r.occupied
 
+
 def test_duplicate_sensor_events(fake_factory):
     events = []
+
     def listener(name, value):
         events.append((name, value))
 
@@ -287,4 +300,69 @@ def test_duplicate_sensor_events(fake_factory):
 
     # sensor should still be ON and no duplicate events should be triggered
     assert sensor.on
-    assert len(list(filter(lambda e: e[0] == "component" and e[1].device_type == DeviceType.SENSOR, events))) == 1
+    assert len(list(filter(
+        lambda e: e[0] == "component" and e[1].device_type == DeviceType.SENSOR, events))) == 1
+
+
+def test_speed_trap(fake_factory):
+    events = []
+
+    def listener(name, value):
+        events.append((name, value))
+
+    communicator = Communicator(serial_factory=fake_factory)
+    layout = Layout(communicator)
+    layout.load(layout_data)
+    layout.add_listener(listener)
+
+    ok, msg = layout.communicator.connect("/dev/fake")
+    assert ok, f"Connect failed: {msg}"
+
+    sensor: Sensor = layout.components[DeviceType.SENSOR.name][1]
+    speed_trap: SpeedTrap = layout.components[DeviceType.SPEED.name][1]
+
+    assert speed_trap.last_speed == 0
+
+    # inject an incoming 3-byte message to turn sensor "ON" then "OFF"
+    message = {
+        "message_type": 1,  # SET
+        "device_type": 3,   # SENSOR
+        "device_id": 1,
+        "value": 1          # ON
+    }
+    incoming_message = encode_message(message)
+    fake_factory.last.inject_bytes(incoming_message)
+    time.sleep(0.01)
+    message = {
+            "message_type": 1,  # SET
+            "device_type": 3,   # SENSOR
+            "device_id": 1,
+            "value": 0          # ON
+        }
+    incoming_message = encode_message(message)
+    fake_factory.last.inject_bytes(incoming_message)
+    time.sleep(0.1)
+
+    assert speed_trap.last_speed == 0
+
+    # inject an incoming 3-byte message to turn sensor "ON" then "OFF"
+    message = {
+        "message_type": 1,  # SET
+        "device_type": 3,   # SENSOR
+        "device_id": 1,
+        "value": 1          # ON
+    }
+    incoming_message = encode_message(message)
+    fake_factory.last.inject_bytes(incoming_message)
+    time.sleep(0.01)
+    message = {
+            "message_type": 1,  # SET
+            "device_type": 3,   # SENSOR
+            "device_id": 1,
+            "value": 0          # ON
+        }
+    incoming_message = encode_message(message)
+    fake_factory.last.inject_bytes(incoming_message)
+    time.sleep(0.1)
+
+    assert speed_trap.last_speed > 0

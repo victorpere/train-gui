@@ -346,6 +346,10 @@ class SpeedTrap:
     def process_message(self, message: Message) -> Tuple[bool, str]:
         return False, ""
 
+    @property
+    def last_speed(self):
+        return self._last_speed
+
     def receive_component_event(self, name: str, value: object):
         if name != "component":
             return
@@ -356,12 +360,12 @@ class SpeedTrap:
                 self._last_sensor_2_event_time = event_time
                 if self._last_sensor_1_event_time > 0:
                     elapsed_time = self._last_sensor_2_event_time - self._last_sensor_1_event_time
-                    self._last_speed = self._distance / elapsed_time
+                    self._last_speed = (self._distance / elapsed_time) * 1000 # per second
                     cb_message = Message(
                         message_type=MessageType.SET,
                         device_type=DeviceType.SPEED,
                         device_id=self.id,
-                        value=int(self._last_speed * 1000)
+                        value=int(self._last_speed)
                     )
                     self._cb(cb_message)
             if message.device_id == self._sensor_1_id:
