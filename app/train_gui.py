@@ -6,7 +6,7 @@ from tkinter import filedialog as fd
 from tkinter.ttk import Button
 import tkinter.font as tkFont
 from scenario import ScenarioRunner, ScenarioState, ScenarioStatus
-from railway import Layout, Message, MessageType, DeviceType
+from railway import Layout, Message, MessageType, DeviceType, Sensor
 from communication import Communicator
 
 
@@ -127,6 +127,7 @@ class TrainController:
 
         self.controls: dict[int, TrackControl] = {}
         self.speed_displays: dict[int, SpeedDisplay] = {}
+        self.sensor_indicators: dict[int, int] = {}
 
         self.build_ui()
 
@@ -157,7 +158,9 @@ class TrainController:
             if device_type_name == DeviceType.SPEED.name:
                 for component_id in component_list:
                     self._build_speed_ui(component_id)
-
+            if device_type_name == DeviceType.SENSOR.name:
+                for component_id, sensor in component_list.items():
+                    self._add_sensor_indicator(sensor)
 
         scenario_frame = ttk.LabelFrame(self.left_frame, text="Scenario", padding=10)
         scenario_frame.pack(fill="x", padx=10, pady=5)
@@ -202,10 +205,10 @@ class TrainController:
         track_control = TrackControl(track_id, self.forward_message)
         self.controls[track_id] = track_control
 
-        track_frame = ttk.LabelFrame(self.left_frame, text=f"Track {track_id}", padding=10)
+        track_frame = ttk.LabelFrame(self.left_frame, padding=10)
         track_frame.pack(fill="x", padx=10, pady=5)
 
-        dash_frame = ttk.LabelFrame(track_frame, padding=0)
+        dash_frame = ttk.LabelFrame(track_frame, text=f"Track {track_id} Voltage", padding=0)
         dash_frame.pack(fill="x", padx=0, pady=0)
         ttk.Label(dash_frame, text="Direction").grid(row=0, column=0)
         ttk.Label(dash_frame, text="Target").grid(row=0, column=1)
@@ -246,17 +249,35 @@ class TrainController:
         if self.layout.diagram_data is None:
             return
         try:
-            self.canvas = tk.Canvas(self.left_frame, bg="lightgrey", width=600, height=300)
+            self.canvas = tk.Canvas(self.left_frame, width=600, height=300)
             segments: list = self.layout.diagram_data.get("segments")
             for s in segments:
                 if s["shape"] == "line":
                     self.canvas.create_line(s["x1"], s["y1"], s["x2"], s["y2"], width=2)
                 elif s["shape"] == "arc":
                     self.canvas.create_arc(s["x1"], s["y1"], s["x2"], s["y2"], start=s["start"], extent=s["extent"], style=tk.ARC, width=2)
-            self.sensor1_indicator = self.canvas.create_oval(390, 40, 410, 60, fill="white")
             self.canvas.pack()
         except Exception as exc:
             print(f"Error drawing diagram: {str(exc)}")
+
+
+    def _add_sensor_indicator(self, sensor: Sensor):
+        if sensor.diagram_data is None:
+            return
+        s: dict = sensor.diagram_data.get("coordinates")
+        if s is None:
+            return
+        try:
+            x1 = s["x"] - 10
+            y1 = s["y"] - 10
+            x2 = s["x"] + 10
+            y2 = s["y"] + 10
+            sensor_indicator_id = self.canvas.create_oval(x1, y1, x2, y2, fill="white")
+            self.sensor_indicators[sensor.id] = sensor_indicator_id
+
+        except Exception as exc:
+            print(f"Error drawing sensor: {str(exc)}")
+
 
     def select_file(self):
         filepath = fd.askopenfilename(title='Open a file', initialdir=os.path.join("data", "scenarios"), filetypes=[('JSON files', '*.json')])
@@ -387,12 +408,14 @@ class TrainController:
                 speed: float = float(message.value) * self.layout.scale * 0.0036 # convert to scale in km/h
                 speed_display.last_speed.set(speed)
         elif message.device_type == DeviceType.SENSOR:
-            if message.value == 1:
-                self.canvas.itemconfig(self.sensor1_indicator, fill="red")
-            elif message.value == 0:
-                def sensor_indicator_off():
-                    self.canvas.itemconfig(self.sensor1_indicator, fill="white")
-                self.root.after(100, sensor_indicator_off)
+            sensor_indicator = self.sensor_indicators.get(message.device_id)
+            if not sensor_indicator is None:
+                if message.value == 1:
+                    self.canvas.itemconfig(sensor_indicator, fill="red")
+                elif message.value == 0:
+                    def sensor_indicator_off():
+                        self.canvas.itemconfig(sensor_indicator, fill="white")
+                    self.root.after(100, sensor_indicator_off)
         else:
             return False, "Unknown device type"
 
