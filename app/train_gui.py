@@ -8,6 +8,7 @@ import tkinter.font as tkFont
 from scenario import ScenarioRunner, ScenarioState, ScenarioStatus
 from railway import Layout, Message, MessageType, DeviceType, Sensor
 from communication import Communicator
+import diagram_helper
 
 
 class ControllerCallback(Protocol):
@@ -254,8 +255,9 @@ class TrainController:
             for s in segments:
                 if s["shape"] == "line":
                     self.canvas.create_line(s["x1"], s["y1"], s["x2"], s["y2"], width=2)
-                elif s["shape"] == "arc":
-                    self.canvas.create_arc(s["x1"], s["y1"], s["x2"], s["y2"], start=s["start"], extent=s["extent"], style=tk.ARC, width=2)
+                elif s["shape"] == "curve":
+                    p = diagram_helper.curve_to_tkinter_arc(s)
+                    self.canvas.create_arc(p["x1"], p["y1"], p["x2"], p["y2"], start=p["start"], extent=p["extent"], style=tk.ARC, width=2)
             self.canvas.pack()
         except Exception as exc:
             print(f"Error drawing diagram: {str(exc)}")
@@ -264,7 +266,7 @@ class TrainController:
     def _add_sensor_indicator(self, sensor: Sensor):
         if sensor.diagram_data is None:
             return
-        s: dict = sensor.diagram_data.get("coordinates")
+        s: dict = sensor.diagram_data.get("location")
         if s is None:
             return
         try:

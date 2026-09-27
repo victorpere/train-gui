@@ -12,12 +12,16 @@
         "y2": 50
       },
       {
-        "shape": "arc",
-        "x1": 300,
-        "y1": 50,
-        "x2": 500,
-        "y2": 250,
-        "start": -90,
+        "shape": "curve",
+        "start_point": {
+          "x": 400,
+          "y": 50
+        },
+        "end_point": {
+          "x": 400,
+          "y": 250
+        },
+        "start_angle": -90,
         "extent": 180
       },
       {
@@ -28,12 +32,16 @@
         "y2": 250
       },
       {
-        "shape": "arc",
-        "x1": 100,
-        "y1": 50,
-        "x2": 300,
-        "y2": 250,
-        "start": 90,
+        "shape": "curve",
+        "start_point": {
+          "x": 200,
+          "y": 250
+        },
+        "end_point": {
+          "x": 200,
+          "y": 50
+        },
+        "start_angle": 90,
         "extent": 180
       }
     ]
@@ -57,7 +65,7 @@
       "block_f_id": 1,
       "block_r_id": 1,
       "diagram": {
-        "coordinates": {
+        "location": {
           "x": 400,
           "y": 50
         }
