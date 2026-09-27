@@ -1,0 +1,61 @@
+{
+    "name": "Series 223 #1",
+    "description": "stop every three laps",
+    "times": 1000,
+    "steps": [
+        {
+            "action": "DEVICE_SET",
+            "device_type": "TARGET_VOLTAGE",
+            "device_id": 1,
+            "value": -125
+        },
+        {
+            "action": "DEVICE_WAIT",
+            "device_type": "SENSOR",
+            "device_id": 1,
+            "value": 1
+        },
+        {
+            "action": "TIME_WAIT",
+            "value": 1000
+        },
+        {
+            "action": "DEVICE_WAIT",
+            "device_type": "SENSOR",
+            "device_id": 1,
+            "value": 1
+        },
+        {
+            "action": "TIME_WAIT",
+            "value": 10000
+        },
+        {
+            "action": "DEVICE_SET",
+            "device_type": "TARGET_VOLTAGE",
+            "device_id": 1,
+            "value": -85
+        },
+        {
+            "action": "DEVICE_WAIT",
+            "device_type": "SENSOR",
+            "device_id": 1,
+            "value": 1
+        },
+        {
+            "action": "DEVICE_SET",
+            "device_type":"TARGET_VOLTAGE",
+            "device_id": 1,
+            "value": -40
+        },
+        {
+            "action": "DEVICE_WAIT",
+            "device_type": "ACTUAL_VOLTAGE",
+            "device_id": 1,
+            "value": -40
+        },
+        {
+            "action": "TIME_WAIT",
+            "value": 4000
+        }
+    ]
+}
