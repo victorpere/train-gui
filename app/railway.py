@@ -15,9 +15,14 @@ class DeviceType(Enum):
     TARGET_VOLTAGE = 1
     BLOCK = 2
     SENSOR = 3
-    POINT = 4
+    POINT_DIRECTION = 4
     SIGNAL = 5
     SPEED = 10
+
+
+class PointDirection(Enum):
+    PRIMARY = 0
+    SECONDARY = 1
 
 
 class Message(BaseModel):
@@ -370,3 +375,16 @@ class SpeedTrap:
                     self._cb(cb_message)
             if message.device_id == self._sensor_1_id:
                 self._last_sensor_1_event_time = event_time
+
+
+class Point:
+    def __init__(self, id: int, fork_direction: int, secondary_direction: str, cb: Callback):
+        self.id = id
+        self.fork_direction = fork_direction # 1=for in the forward voltage direction, -1=in the reverse voltage direction
+        self._cb = cb
+        self._direction = 1
+
+
+    def process_message(self, message: Message) -> Tuple[bool, str]:
+        pass
+

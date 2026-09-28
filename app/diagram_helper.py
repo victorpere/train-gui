@@ -1,44 +1,41 @@
 import math
 
 
-def curve_to_tkinter_arc(curve: dict) -> dict:
-    """Convert a custom arc definition into tkinter Canvas.create_arc parameters.
-
-    The custom definition describes an arc by the two points where it starts
-    and ends, an unsigned start angle/extent (tkinter degree convention, 0 at
-    3 o'clock), and a direction of travel from start_point to end_point.
-
-    Expected input keys:
-        start_point: {"x": float, "y": float}
-        end_point: {"x": float, "y": float}
-        start: float (degrees)
-        extent: float (degrees, signed magnitude)
-
-    Returns a dict with keys x1, y1, x2, y2, start, extent, matching the
-    arguments expected by tkinter's Canvas.create_arc.
+def curve_to_tkinter_arc(arc):
+    """Convert a {start_point, end_point, start_angle, extent} arc definition into
+    tkinter Canvas.create_arc bounding-box/start/extent parameters.
     """
-    start_point = curve["start_point"]
-    end_point = curve["end_point"]
-    start_angle = curve["start_angle"]
-    extent = curve["extent"]
+    x1, y1 = arc["start_point"]["x"], arc["start_point"]["y"]
+    x2, y2 = arc["end_point"]["x"], arc["end_point"]["y"]
+    start_angle = arc["start_angle"]
+    extent = arc["extent"]
 
-    # The chord between the two points, combined with the angle it subtends
-    # (the extent), is enough to solve for the circle's radius and center.
-    chord_length = math.hypot(end_point["x"] - start_point["x"], end_point["y"] - start_point["y"])
-    sin_half_extent = math.sin(math.radians(extent) / 2)
-    if sin_half_extent == 0:
-        raise ValueError("Arc extent must not be a multiple of 360 degrees")
+    a1 = math.radians(start_angle)
+    a2 = math.radians(start_angle + extent)
+    cos1, sin1 = math.cos(a1), math.sin(a1)
+    cos2, sin2 = math.cos(a2), math.sin(a2)
 
-    radius = chord_length / (2 * abs(sin_half_extent))
-    start_angle_rad = math.radians(start_angle)
-    center_x = start_point["x"] - radius * math.cos(start_angle_rad)
-    center_y = start_point["y"] - radius * math.sin(start_angle_rad)
+    # Solve x = cx + rx*cos(theta), y = cy - ry*sin(theta) for each axis independently,
+    # since the two points don't necessarily lie on a circle (rx may differ from ry).
+    dcos = cos1 - cos2
+    dsin = sin2 - sin1
+    rx = (x1 - x2) / dcos if not math.isclose(dcos, 0, abs_tol=1e-9) else None
+    ry = (y1 - y2) / dsin if not math.isclose(dsin, 0, abs_tol=1e-9) else None
+
+    if rx is None and ry is None:
+        raise ValueError("extent must not be a multiple of 360 degrees")
+    # If one axis doesn't constrain its radius (points share that coordinate), mirror the other.
+    rx = ry if rx is None else rx
+    ry = rx if ry is None else ry
+
+    cx = x1 - rx * cos1
+    cy = y1 + ry * sin1
 
     return {
-        "x1": center_x - radius,
-        "y1": center_y - radius,
-        "x2": center_x + radius,
-        "y2": center_y + radius,
+        "x1": cx - rx,
+        "y1": cy - ry,
+        "x2": cx + rx,
+        "y2": cy + ry,
         "start": start_angle,
         "extent": extent,
     }

@@ -7,50 +7,76 @@
       {
         "shape": "straight",
         "start_point": {
-          "x": 200,
+          "x": 150,
           "y": 50
         },
         "end_point": {
-          "x": 400,
+          "x": 450,
           "y": 50
         }
       },
       {
         "shape": "curve",
         "start_point": {
-          "x": 400,
+          "x": 450,
           "y": 50
         },
         "end_point": {
-          "x": 400,
+          "x": 450,
           "y": 250
         },
-        "start_angle": -90,
-        "extent": 180
+        "start_angle": 90,
+        "extent": -180
       },
       {
         "shape": "straight",
         "start_point": {
-          "x": 400,
+          "x": 450,
           "y": 250
         },
         "end_point": {
-          "x": 200,
+          "x": 150,
           "y": 250
         }
       },
       {
         "shape": "curve",
         "start_point": {
-          "x": 200,
+          "x": 150,
           "y": 250
         },
         "end_point": {
+          "x": 150,
+          "y": 50
+        },
+        "start_angle": -90,
+        "extent": -180
+      },
+      {
+        "shape": "curve",
+        "start_point": {
           "x": 200,
           "y": 50
         },
+        "end_point": {
+          "x": 250,
+          "y": 60
+        },
         "start_angle": 90,
-        "extent": 180
+        "extent": -15
+      },
+      {
+        "shape": "curve",
+        "start_point": {
+          "x": 250,
+          "y": 60
+        },
+        "end_point": {
+          "x": 300,
+          "y": 70
+        },
+        "start_angle": -105,
+        "extent": 15
       }
     ]
   },
@@ -74,13 +100,19 @@
       "block_r_id": 1,
       "diagram": {
         "location": {
-          "x": 400,
+          "x": 440,
           "y": 50
         }
       }
     }
   ],
-  "points": [],
+  "points": [
+    {
+      "id": 1,
+      "fork_direction": 1,
+      "secondary_direction": "right"
+    }
+  ],
   "speed_traps": [
     {
       "id": 1,
