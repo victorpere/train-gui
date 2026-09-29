@@ -254,7 +254,7 @@ class TrainController:
             segments: list = self.layout.diagram_data.get("segments")
             for s in segments:
                 if s["shape"] == "straight":
-                    self.canvas.create_line(s["start_point"]["x"], s["start_point"]["y"], s["end_point"]["x"], s["end_point"]["y"], width=2)
+                    self.canvas.create_line(s["start_point"][0], s["start_point"][1], s["end_point"][0], s["end_point"][1], width=2)
                 elif s["shape"] == "curve":
                     p = diagram_helper.curve_to_tkinter_arc(s)
                     self.canvas.create_arc(p["x1"], p["y1"], p["x2"], p["y2"], start=p["start"], extent=p["extent"], style=tk.ARC, width=2)
@@ -270,10 +270,10 @@ class TrainController:
         if s is None:
             return
         try:
-            x1 = s["x"] - 10
-            y1 = s["y"] - 10
-            x2 = s["x"] + 10
-            y2 = s["y"] + 10
+            x1 = s[0] - 10
+            y1 = s[1] - 10
+            x2 = s[0] + 10
+            y2 = s[1] + 10
             sensor_indicator_id = self.canvas.create_oval(x1, y1, x2, y2, fill="white")
             self.sensor_indicators[sensor.id] = sensor_indicator_id
 

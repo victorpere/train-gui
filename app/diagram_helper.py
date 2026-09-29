@@ -5,8 +5,8 @@ def curve_to_tkinter_arc(arc):
     """Convert a {start_point, end_point, start_angle, extent} arc definition into
     tkinter Canvas.create_arc bounding-box/start/extent parameters.
     """
-    x1, y1 = arc["start_point"]["x"], arc["start_point"]["y"]
-    x2, y2 = arc["end_point"]["x"], arc["end_point"]["y"]
+    x1, y1 = arc["start_point"][0], arc["start_point"][1]
+    x2, y2 = arc["end_point"][0], arc["end_point"][1]
     start_angle = arc["start_angle"]
     extent = arc["extent"]
 
