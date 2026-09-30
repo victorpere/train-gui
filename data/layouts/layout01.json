@@ -70,7 +70,17 @@
   },
   "tracks": [
     {
-      "id": 1
+      "id": 1,
+      "segments": [
+        3,
+        4,
+        1,
+        {
+          "point_id": 1,
+          "direction_0": [8, 9, 2],
+          "direction_1": [5, 6, 7]
+        }
+      ]
     }
   ],
   "blocks": [
@@ -95,8 +105,13 @@
     {
       "id": 1,
       "fork_direction": 1,
-      "primary_direction_segments": [8],
-      "secondary_direction_segments": [5]
+      "initial_direction": 0,
+      "diagram": {
+        "segments": {
+          "direction_0": [8],
+          "direction_1": [5]
+        }
+      }
     }
   ],
   "speed_traps": [

@@ -67,13 +67,14 @@ class Layout:
             blocks = layout_data.get("blocks", [])
             sensors = layout_data.get("sensors", [])
             speed_traps = layout_data.get("speed_traps", [])
+            points = layout_data.get("points", [])
 
             for device_type_name, _ in DeviceType.__members__.items():
                 """Add all device types to components"""
                 self.components[device_type_name] = dict()
 
             for track_data in tracks:
-                track = Track(track_data.get("id"), self._on_component_event, diagram_data=track_data.get("diagram"))
+                track = Track(track_data.get("id"), self._on_component_event, segments_data=track_data.get("segments"))
                 self.components[DeviceType.TARGET_VOLTAGE.name][track.id] = track
                 self.components[DeviceType.ACTUAL_VOLTAGE.name][track.id] = track
 
@@ -97,6 +98,13 @@ class Layout:
                                        cb=self._on_component_event)
                 self.add_listener(speed_trap.receive_component_event)
                 self.components[DeviceType.SPEED.name][speed_trap.id] = speed_trap
+
+            for point_data in points:
+                point = Point(id=point_data.get("id"), \
+                              fork_direction=point_data.get("fork_direction"), \
+                              diagram_data=point_data.get("diagram"), \
+                              cb=self._on_component_event)
+                self.components[DeviceType.POINT_DIRECTION.name][point.id] = point
 
             return True, ""
 
@@ -194,12 +202,21 @@ class Track:
     """Encapsulates track voltage control.
     """
 
-    def __init__(self, id: int, cb: Callback, diagram_data: dict = None):
+    def __init__(self, id: int, cb: Callback, segments_data: list = None):
         self.id = id
         self._target_voltage = 0
         self._actual_voltage = 0
         self._cb = cb
-        self.diagram_data = diagram_data
+        self.segments_data = segments_data
+        self.segments: dict[int, bool] = {}
+
+    def electrified_segments(self):
+        try:
+            for index, segment in enumerate(self.segments_data):
+                pass
+
+        except Exception as exc:
+            print(f"track.electrified_segments exc: {str(exc)}")
 
     @property
     def actual_direction(self):
@@ -214,6 +231,7 @@ class Track:
     @property
     def actual_voltage(self):
         return self._actual_voltage
+
 
     def set_voltage(self, voltage: int) -> Tuple[bool, str]:
         if (voltage > 0 and (self._target_voltage < 0 or self._actual_voltage < 0)) or \
@@ -378,12 +396,16 @@ class SpeedTrap:
 
 
 class Point:
-    def __init__(self, id: int, fork_direction: int, secondary_direction: str, cb: Callback):
+    def __init__(self, id: int, fork_direction: int, diagram_data: dict, cb: Callback):
         self.id = id
         self.fork_direction = fork_direction # 1=for in the forward voltage direction, -1=in the reverse voltage direction
         self._cb = cb
-        self._direction = 1
+        self._direction = 0
+        self.diagram_data = diagram_data
 
+    @property
+    def direction(self):
+        return self._direction
 
     def process_message(self, message: Message) -> Tuple[bool, str]:
         pass

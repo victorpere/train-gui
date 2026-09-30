@@ -39,3 +39,9 @@ def curve_to_tkinter_arc(arc):
         "start": start_angle,
         "extent": extent,
     }
+
+
+def mid_point(segment):
+    x = (segment["start_point"][0] + segment["end_point"][0]) / 2
+    y = (segment["start_point"][1] + segment["end_point"][1]) / 2
+    return x, y

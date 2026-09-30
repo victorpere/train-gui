@@ -6,7 +6,7 @@ from tkinter import filedialog as fd
 from tkinter.ttk import Button
 import tkinter.font as tkFont
 from scenario import ScenarioRunner, ScenarioState, ScenarioStatus
-from railway import Layout, Message, MessageType, DeviceType, Sensor
+from railway import Layout, Message, MessageType, DeviceType, Sensor, Point
 from communication import Communicator
 import diagram_helper
 
@@ -129,6 +129,7 @@ class TrainController:
         self.controls: dict[int, TrackControl] = {}
         self.speed_displays: dict[int, SpeedDisplay] = {}
         self.sensor_indicators: dict[int, int] = {}
+        self.segments: dict[int, Tuple[str, int]] = {}
 
         self.build_ui()
 
@@ -156,12 +157,15 @@ class TrainController:
             if device_type_name == DeviceType.TARGET_VOLTAGE.name:
                 for component_id in component_list:
                     self._build_control_ui(component_id)
-            if device_type_name == DeviceType.SPEED.name:
+            elif device_type_name == DeviceType.SPEED.name:
                 for component_id in component_list:
                     self._build_speed_ui(component_id)
-            if device_type_name == DeviceType.SENSOR.name:
+            elif device_type_name == DeviceType.SENSOR.name:
                 for component_id, sensor in component_list.items():
                     self._add_sensor_indicator(sensor)
+            elif device_type_name == DeviceType.POINT_DIRECTION.name:
+                for component_id, point in component_list.items():
+                    self._update_point_diagram(point)
 
         scenario_frame = ttk.LabelFrame(self.left_frame, text="Scenario", padding=10)
         scenario_frame.pack(fill="x", padx=10, pady=5)
@@ -254,13 +258,27 @@ class TrainController:
             segments: list = self.layout.diagram_data.get("segments")
             for s in segments:
                 if s["shape"] == "straight":
-                    self.canvas.create_line(s["start_point"][0], s["start_point"][1], s["end_point"][0], s["end_point"][1], width=2)
+                    segment = self.canvas.create_line(s["start_point"][0], s["start_point"][1], s["end_point"][0], s["end_point"][1], width=2)
+                    self.segments[s["id"]] = "straight", segment
                 elif s["shape"] == "curve":
                     p = diagram_helper.curve_to_tkinter_arc(s)
-                    self.canvas.create_arc(p["x1"], p["y1"], p["x2"], p["y2"], start=p["start"], extent=p["extent"], style=tk.ARC, width=2)
+                    segment = self.canvas.create_arc(p["x1"], p["y1"], p["x2"], p["y2"], start=p["start"], extent=p["extent"], style=tk.ARC, width=2)
+                    self.segments[s["id"]] = "curve", segment
+                self.canvas.create_text(s["start_point"][0], s["start_point"][1], text=str(s["id"]), fill="red")
             self.canvas.pack()
         except Exception as exc:
             print(f"Error drawing diagram: {str(exc)}")
+
+    
+    def _update_point_diagram(self, point: Point):
+        try:    
+            for segment_id in point.diagram_data["segments"][f"direction_{point.direction}"]:
+                if self.segments[segment_id][0] == "straight":
+                    self.canvas.itemconfig(self.segments[segment_id][1], width=6, fill="lime")
+                elif self.segments[segment_id][0] == "curve":
+                    self.canvas.itemconfig(self.segments[segment_id][1], width=6, outline="lime")
+        except Exception as exc:
+            print(f"Failed to update point diagram: {str(exc)}")
 
 
     def _add_sensor_indicator(self, sensor: Sensor):
