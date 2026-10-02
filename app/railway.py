@@ -100,10 +100,7 @@ class Layout:
                 self.components[DeviceType.SPEED.name][speed_trap.id] = speed_trap
 
             for point_data in points:
-                point = Point(id=point_data.get("id"), \
-                              fork_direction=point_data.get("fork_direction"), \
-                              diagram_data=point_data.get("diagram"), \
-                              cb=self._on_component_event)
+                point = Point(point_data, cb=self._on_component_event)
                 self.components[DeviceType.POINT_DIRECTION.name][point.id] = point
 
             return True, ""
@@ -396,17 +393,23 @@ class SpeedTrap:
 
 
 class Point:
-    def __init__(self, id: int, fork_direction: int, diagram_data: dict, cb: Callback):
-        self.id = id
-        self.fork_direction = fork_direction # 1=for in the forward voltage direction, -1=in the reverse voltage direction
+    def __init__(self, point_data: dict, cb: Callback):
+        self.id = point_data.get("id")
         self._cb = cb
-        self._direction = 0
-        self.diagram_data = diagram_data
+        self._direction: int = point_data.get("initial_direction")
+        self._directions: dict[int, list[int]] = {}
+
+        directions_data: list = point_data.get("directions")
+        for direction in directions_data:
+            self._directions[direction["direction"]] = direction["segments"]
 
     @property
     def direction(self):
         return self._direction
 
+    @property
+    def directions(self):
+        return self._directions
+
     def process_message(self, message: Message) -> Tuple[bool, str]:
         pass
-

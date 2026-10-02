@@ -264,7 +264,7 @@ class TrainController:
                     p = diagram_helper.curve_to_tkinter_arc(s)
                     segment = self.canvas.create_arc(p["x1"], p["y1"], p["x2"], p["y2"], start=p["start"], extent=p["extent"], style=tk.ARC, width=2)
                     self.segments[s["id"]] = "curve", segment
-                self.canvas.create_text(s["start_point"][0], s["start_point"][1], text=str(s["id"]), fill="red")
+                # self.canvas.create_text(s["start_point"][0], s["start_point"][1], text=str(s["id"]), fill="red")
             self.canvas.pack()
         except Exception as exc:
             print(f"Error drawing diagram: {str(exc)}")
@@ -272,11 +272,13 @@ class TrainController:
     
     def _update_point_diagram(self, point: Point):
         try:    
-            for segment_id in point.diagram_data["segments"][f"direction_{point.direction}"]:
-                if self.segments[segment_id][0] == "straight":
-                    self.canvas.itemconfig(self.segments[segment_id][1], width=6, fill="lime")
-                elif self.segments[segment_id][0] == "curve":
-                    self.canvas.itemconfig(self.segments[segment_id][1], width=6, outline="lime")
+            for direction in point.directions:
+                if direction == point.direction:
+                    for segment_id in point.directions[direction]:
+                        self.canvas.itemconfig(self.segments[segment_id][1], width=6)
+                else:
+                    for segment_id in point.directions[direction]:
+                        self.canvas.itemconfig(self.segments[segment_id][1], width=2)
         except Exception as exc:
             print(f"Failed to update point diagram: {str(exc)}")
 
