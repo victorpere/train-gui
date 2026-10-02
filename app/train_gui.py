@@ -273,8 +273,8 @@ class TrainController:
     def _build_point_diagram(self, point: Point):
         try:
             updateLambda = lambda p: self._switch_point_direction(point=point)
-            for direction in point.directions:
-                for segment_id in point.directions[direction]:
+            for direction in point.direction_segments:
+                for segment_id in direction:
                     self.canvas.tag_bind(self.segments[segment_id][1], '<Button-1>', updateLambda)
             self._update_point_diagram(point)
         except Exception as exc:
@@ -284,13 +284,13 @@ class TrainController:
     def _switch_point_direction(self, point: Point):
         # TODO: move to railway/layout?
         try:
-            for direction in point.directions:
-                if direction != point.direction:
+            for index in range(len(point.direction_segments)):
+                if index != point.direction:
                     message = Message (
                         message_type=MessageType.SET,
                         device_type=DeviceType.POINT_DIRECTION,
                         device_id=point.id,
-                        value=direction
+                        value=index
                     )
                     ok, msg = self.layout.command(message)
 
@@ -304,12 +304,12 @@ class TrainController:
     
     def _update_point_diagram(self, point: Point):
         try:    
-            for direction in point.directions:
-                if direction == point.direction:
-                    for segment_id in point.directions[direction]:
+            for index, segments in enumerate(point.direction_segments):
+                if index == point.direction:
+                    for segment_id in segments:
                         self.canvas.itemconfig(self.segments[segment_id][1], width=6)
                 else:
-                    for segment_id in point.directions[direction]:
+                    for segment_id in segments:
                         self.canvas.itemconfig(self.segments[segment_id][1], width=2)
         except Exception as exc:
             print(f"Failed to update point diagram: {str(exc)}")

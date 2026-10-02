@@ -399,19 +399,19 @@ class Point:
         self.id = point_data.get("id")
         self._cb = cb
         self._direction: int = point_data.get("initial_direction")
-        self._directions: dict[int, list[int]] = {}
+        self._direction_segments: list[list[int]] = []
 
-        directions_data: list = point_data.get("directions")
+        directions_data: list = point_data.get("direction_segments")
         for direction in directions_data:
-            self._directions[direction["direction"]] = direction["segments"]
+            self._direction_segments.append(direction)
 
     @property
     def direction(self):
         return self._direction
 
     @property
-    def directions(self):
-        return self._directions
+    def direction_segments(self):
+        return self._direction_segments
 
     def process_message(self, message: Message) -> Tuple[bool, str]:
         if message.device_type == DeviceType.POINT_DIRECTION and message.device_id == self.id:
