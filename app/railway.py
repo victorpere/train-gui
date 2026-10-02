@@ -177,7 +177,9 @@ class Layout:
            Notifies listeners.
         """
         # print(f"_on_component_event message received: {message}")
-        if message.device_type == DeviceType.TARGET_VOLTAGE and message.message_type == MessageType.SET:
+        # TODO: turn on send point direction when ready
+        if message.device_type == DeviceType.TARGET_VOLTAGE and message.message_type == MessageType.SET: # or \
+        #    message.device_type == DeviceType.POINT_DIRECTION and message.message_type == MessageType.SET:
             print(f"sending message to communicator: {message.value}")
             ok, msg = self._send_message(message)
             print(f"response from communicator: {ok}:{msg}")
@@ -412,4 +414,11 @@ class Point:
         return self._directions
 
     def process_message(self, message: Message) -> Tuple[bool, str]:
-        pass
+        if message.device_type == DeviceType.POINT_DIRECTION and message.device_id == self.id:
+            if message.message_type == MessageType.SET:
+                self._direction = message.value
+                return self._cb(message)
+            elif message.message_type == MessageType.QUERY:
+                return True, str(self._direction)
+        
+        return False, f"Point.process_messageUnknown did not process: {message}"

@@ -165,7 +165,7 @@ class TrainController:
                     self._add_sensor_indicator(sensor)
             elif device_type_name == DeviceType.POINT_DIRECTION.name:
                 for component_id, point in component_list.items():
-                    self._update_point_diagram(point)
+                    self._build_point_diagram(point)
 
         scenario_frame = ttk.LabelFrame(self.left_frame, text="Scenario", padding=10)
         scenario_frame.pack(fill="x", padx=10, pady=5)
@@ -268,6 +268,38 @@ class TrainController:
             self.canvas.pack()
         except Exception as exc:
             print(f"Error drawing diagram: {str(exc)}")
+
+
+    def _build_point_diagram(self, point: Point):
+        try:
+            updateLambda = lambda p: self._switch_point_direction(point=point)
+            for direction in point.directions:
+                for segment_id in point.directions[direction]:
+                    self.canvas.tag_bind(self.segments[segment_id][1], '<Button-1>', updateLambda)
+            self._update_point_diagram(point)
+        except Exception as exc:
+            print(f"Error building point: {point}")
+
+
+    def _switch_point_direction(self, point: Point):
+        # TODO: move to railway/layout?
+        try:
+            for direction in point.directions:
+                if direction != point.direction:
+                    message = Message (
+                        message_type=MessageType.SET,
+                        device_type=DeviceType.POINT_DIRECTION,
+                        device_id=point.id,
+                        value=direction
+                    )
+                    ok, msg = self.layout.command(message)
+
+                    if not ok:
+                        print(f"_switch_point_direction error: {msg}")
+                        self.set_message("error", msg)
+                    return
+        except Exception as exc:
+            print(f"_switch_point_direction exception: {str(exc)}")
 
     
     def _update_point_diagram(self, point: Point):
@@ -438,6 +470,13 @@ class TrainController:
                     def sensor_indicator_off():
                         self.canvas.itemconfig(sensor_indicator, fill="white")
                     self.root.after(100, sensor_indicator_off)
+        elif message.device_type == DeviceType.POINT_DIRECTION:
+            try:
+                point = self.layout.components[DeviceType.POINT_DIRECTION.name][message.device_id]
+                self._update_point_diagram(point)
+            except Exception as exc:
+                print(f"_handle_component_event POINT exception: {str(exc)}")
+                return False, str(exc)
         else:
             return False, "Unknown device type"
 
