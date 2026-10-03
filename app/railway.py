@@ -74,7 +74,7 @@ class Layout:
                 self.components[device_type_name] = dict()
 
             for track_data in tracks:
-                track = Track(track_data.get("id"), self._on_component_event, segments_data=track_data.get("segments"))
+                track = Track(track_data.get("id"), self._on_component_event, self.command, feeder_segment_id=track_data.get("feeder_segment_id"), segments_data=track_data.get("segments"))
                 self.components[DeviceType.TARGET_VOLTAGE.name][track.id] = track
                 self.components[DeviceType.ACTUAL_VOLTAGE.name][track.id] = track
 
@@ -129,6 +129,14 @@ class Layout:
         for target_voltage_device in target_voltage_devices.values():
             track: Track = target_voltage_device
             ok, msg = track.set_voltage(0)
+
+    def electrified_segments(self):
+        segments: list[int] = []
+        track_components = self.components.get(DeviceType.TARGET_VOLTAGE.name)
+        for track_component in track_components.values():
+            track: Track = track_component
+            segments = segments + track.electrified_segments()
+        return segments
 
     def _send_message(self, message: Message):
         """Sends message via communicator"""
@@ -201,21 +209,49 @@ class Track:
     """Encapsulates track voltage control.
     """
 
-    def __init__(self, id: int, cb: Callback, segments_data: list = None):
+    def __init__(self, id: int, cb: Callback, command: Callback, feeder_segment_id: int, segments_data: list = None):
         self.id = id
         self._target_voltage = 0
         self._actual_voltage = 0
         self._cb = cb
-        self.segments_data = segments_data
-        self.segments: dict[int, bool] = {}
+        self._command = command
+        self._segments_data = segments_data
+        self._feeder_segment_id = feeder_segment_id
 
-    def electrified_segments(self):
+    def electrified_segments(self) -> list[int]:
+        segments: list[int] = []
         try:
-            for index, segment in enumerate(self.segments_data):
-                pass
-
+            segments.append(self._feeder_segment_id)
+            for direction_segments in self._segments_data:
+                segments = segments + self._path(direction_segments)
+            print(f"Track.electrified_segments: {segments}")
+            return segments
         except Exception as exc:
             print(f"track.electrified_segments exc: {str(exc)}")
+
+    def _path(self, segments: list) -> list[int]:
+        path_segments: list[int] = []
+        try:
+            for segment in segments:
+                if isinstance(segment, int):
+                    path_segments.append(segment)
+                else:
+                    point_id = segment.get("point_id")
+                    message = Message(
+                        message_type=MessageType.QUERY,
+                        device_type=DeviceType.POINT_DIRECTION,
+                        device_id=point_id,
+                        value=0
+                    )
+                    ok, value = self._command(message)
+                    if not ok:
+                        print(f"Track._path error: {value}")
+                        return []
+                    direction = int(value)
+                    path_segments = path_segments + self._path(segment["direction_segments"][direction])
+            return path_segments
+        except Exception as exc:
+            print(f"Track._path exception: {str(exc)}")
 
     @property
     def actual_direction(self):

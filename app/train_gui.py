@@ -167,6 +167,8 @@ class TrainController:
                 for component_id, point in component_list.items():
                     self._build_point_diagram(point)
 
+        self._update_electrified_segments()
+
         scenario_frame = ttk.LabelFrame(self.left_frame, text="Scenario", padding=10)
         scenario_frame.pack(fill="x", padx=10, pady=5)
 
@@ -332,6 +334,23 @@ class TrainController:
         except Exception as exc:
             print(f"Error drawing sensor: {str(exc)}")
 
+    def _update_electrified_segments(self):
+        try:
+            electrified_segment_ids = self.layout.electrified_segments()
+            for segment in self.segments.values():
+                if segment[0] == "straight":
+                    self.canvas.itemconfig(segment[1], fill="systemTextColor")
+                elif segment[0] == "curve":
+                    self.canvas.itemconfig(segment[1], outline="systemTextColor")
+            for segment_id in electrified_segment_ids:
+                segment = self.segments[segment_id]
+                if segment[0] == "straight":
+                    self.canvas.itemconfig(segment[1], fill="lime")
+                elif segment[0] == "curve":
+                    self.canvas.itemconfig(segment[1], outline="lime")
+        except Exception as exc:
+            print(f"_update_electrified_segments exception: {str(exc)}")
+
 
     def select_file(self):
         filepath = fd.askopenfilename(title='Open a file', initialdir=os.path.join("data", "scenarios"), filetypes=[('JSON files', '*.json')])
@@ -474,6 +493,7 @@ class TrainController:
             try:
                 point = self.layout.components[DeviceType.POINT_DIRECTION.name][message.device_id]
                 self._update_point_diagram(point)
+                self._update_electrified_segments()
             except Exception as exc:
                 print(f"_handle_component_event POINT exception: {str(exc)}")
                 return False, str(exc)
