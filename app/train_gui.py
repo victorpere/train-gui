@@ -310,6 +310,7 @@ class TrainController:
                 if index == point.direction:
                     for segment_id in segments:
                         self.canvas.itemconfig(self.segments[segment_id][1], width=6)
+                        self.canvas.tag_raise(self.segments[segment_id][1])
                 else:
                     for segment_id in segments:
                         self.canvas.itemconfig(self.segments[segment_id][1], width=2)
