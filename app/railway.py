@@ -100,7 +100,7 @@ class Layout:
                 self.components[DeviceType.SPEED.name][speed_trap.id] = speed_trap
 
             for point_data in points:
-                point = Point(point_data, cb=self._on_component_event)
+                point = Point(point_data, layout=self, cb=self._on_component_event)
                 self.components[DeviceType.POINT_DIRECTION.name][point.id] = point
 
             return True, ""
@@ -431,11 +431,12 @@ class SpeedTrap:
 
 
 class Point:
-    def __init__(self, point_data: dict, cb: Callback):
+    def __init__(self, point_data: dict, layout: Layout, cb: Callback):
         self.id = point_data.get("id")
         self._cb = cb
         self._direction: int = point_data.get("initial_direction")
         self._direction_segments: list[int] = []
+        self._layout = layout
 
         directions_data: list = point_data.get("direction_segments")
         for direction in directions_data:
@@ -452,6 +453,25 @@ class Point:
     def process_message(self, message: Message) -> Tuple[bool, str]:
         if message.device_type == DeviceType.POINT_DIRECTION and message.device_id == self.id:
             if message.message_type == MessageType.SET:
+                if self._direction != message.value:
+                    electrified_segments = self._layout.electrified_segments()
+                    for track_id in electrified_segments:
+                        if self._direction_segments[self._direction] in electrified_segments[track_id] or \
+                           self._direction_segments[message.value] in electrified_segments[track_id]:
+                            voltage_query = Message(
+                                message_type=MessageType.QUERY,
+                                device_type=DeviceType.ACTUAL_VOLTAGE,
+                                device_id=track_id,
+                                value=0
+                            )
+                            ok, msg = self._layout.command(voltage_query)
+                            if ok:
+                                track_voltage = int(msg)
+                                if track_voltage != 0:
+                                    return False, "Track voltage is not 0"
+                            else:
+                                print(f"Failed to get track voltage: {msg}")
+                                return False, msg
                 self._direction = message.value
                 return self._cb(message)
             elif message.message_type == MessageType.QUERY:
