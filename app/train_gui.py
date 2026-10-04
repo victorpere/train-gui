@@ -337,18 +337,19 @@ class TrainController:
 
     def _update_electrified_segments(self):
         try:
-            electrified_segment_ids = self.layout.electrified_segments()
+            electrified_segments = self.layout.electrified_segments()
             for segment in self.segments.values():
                 if segment[0] == "straight":
                     self.canvas.itemconfig(segment[1], fill="systemTextColor")
                 elif segment[0] == "curve":
                     self.canvas.itemconfig(segment[1], outline="systemTextColor")
-            for segment_id in electrified_segment_ids:
-                segment = self.segments[segment_id]
-                if segment[0] == "straight":
-                    self.canvas.itemconfig(segment[1], fill="lime")
-                elif segment[0] == "curve":
-                    self.canvas.itemconfig(segment[1], outline="lime")
+            for track_segment_ids in electrified_segments.values():
+                for segment_id in track_segment_ids:
+                    segment = self.segments[segment_id]
+                    if segment[0] == "straight":
+                        self.canvas.itemconfig(segment[1], fill="lime")
+                    elif segment[0] == "curve":
+                        self.canvas.itemconfig(segment[1], outline="lime")
         except Exception as exc:
             print(f"_update_electrified_segments exception: {str(exc)}")
 

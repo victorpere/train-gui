@@ -130,12 +130,13 @@ class Layout:
             track: Track = target_voltage_device
             ok, msg = track.set_voltage(0)
 
-    def electrified_segments(self):
-        segments: list[int] = []
+    def electrified_segments(self) -> dict[int, list[int]]:
+        segments: dict[int, list[int]] = {}
         track_components = self.components.get(DeviceType.TARGET_VOLTAGE.name)
         for track_component in track_components.values():
             track: Track = track_component
-            segments = segments + track.electrified_segments()
+            segments[track.id] = track.electrified_segments()
+        print(f"Layout.electrified_segments: {segments}")
         return segments
 
     def _send_message(self, message: Message):
@@ -224,7 +225,6 @@ class Track:
             segments.append(self._feeder_segment_id)
             for direction_segments in self._segments_data:
                 segments = segments + self._path(direction_segments)
-            print(f"Track.electrified_segments: {segments}")
             return segments
         except Exception as exc:
             print(f"track.electrified_segments exc: {str(exc)}")
