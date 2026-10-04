@@ -435,7 +435,7 @@ class Point:
         self.id = point_data.get("id")
         self._cb = cb
         self._direction: int = point_data.get("initial_direction")
-        self._direction_segments: list[list[int]] = []
+        self._direction_segments: list[int] = []
 
         directions_data: list = point_data.get("direction_segments")
         for direction in directions_data:

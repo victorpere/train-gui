@@ -129,12 +129,12 @@
     {
       "id": 1,
       "initial_direction": 0,
-      "direction_segments": [[8], [5]]
+      "direction_segments": [8, 5]
     },
     {
       "id": 2,
       "initial_direction": 1,
-      "direction_segments": [[6], [10]]
+      "direction_segments": [6, 10]
     }
   ],
   "speed_traps": [

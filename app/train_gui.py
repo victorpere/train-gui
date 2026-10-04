@@ -275,9 +275,8 @@ class TrainController:
     def _build_point_diagram(self, point: Point):
         try:
             updateLambda = lambda p: self._switch_point_direction(point=point)
-            for direction in point.direction_segments:
-                for segment_id in direction:
-                    self.canvas.tag_bind(self.segments[segment_id][1], '<Button-1>', updateLambda)
+            for direction_segment_id in point.direction_segments:
+                self.canvas.tag_bind(self.segments[direction_segment_id][1], '<Button-1>', updateLambda)
             self._update_point_diagram(point)
         except Exception as exc:
             print(f"Error building point: {point}")
@@ -306,14 +305,12 @@ class TrainController:
     
     def _update_point_diagram(self, point: Point):
         try:    
-            for index, segments in enumerate(point.direction_segments):
+            for index, segment_id in enumerate(point.direction_segments):
                 if index == point.direction:
-                    for segment_id in segments:
-                        self.canvas.itemconfig(self.segments[segment_id][1], width=6)
-                        self.canvas.tag_raise(self.segments[segment_id][1])
+                    self.canvas.itemconfig(self.segments[segment_id][1], width=6)
+                    self.canvas.tag_raise(self.segments[segment_id][1])
                 else:
-                    for segment_id in segments:
-                        self.canvas.itemconfig(self.segments[segment_id][1], width=2)
+                    self.canvas.itemconfig(self.segments[segment_id][1], width=2)
         except Exception as exc:
             print(f"Failed to update point diagram: {str(exc)}")
 
