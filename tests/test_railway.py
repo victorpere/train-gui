@@ -1,6 +1,6 @@
 from fake_serial import FakeSerial
 from util import encode_message
-from railway import Layout, DeviceType, Message, MessageType, Sensor, Block, Track, SpeedTrap
+from railway import Layout, DeviceType, Message, MessageType, Sensor, Block, Track, SpeedTrap, Point
 from communication import Communicator
 import pytest
 import os
@@ -24,9 +24,45 @@ def fake_factory():
 layout_data = {
     "name": "test layout",
     "description": "layout with one track, two blocks and one sensor",
+    "scale": 150.0,
+    "diagram": {
+        "segments": [
+            {
+                "id": 1,
+                "shape": "straight",
+                "start_point": [0, 0],
+                "end_point": [10, 0]
+            },
+            {
+                "id": 2,
+                "shape": "straight",
+                "start_point": [10, 0],
+                "end_point": [20, 0]
+            },
+            {
+                "id": 3,
+                "shape": "straight",
+                "start_point": [20, 0],
+                "end_point": [30, 0]
+            },
+            {
+                "id": 4,
+                "shape": "curve",
+                "start_point": [10, 0],
+                "end_point": [20, 10]
+            }
+        ]
+    },
     "tracks": [
         {
-            "id": 1
+            "id": 1,
+            "feeder_segment_id": 1,
+            "segments": [
+                [1, {
+                    "point_id": 1,
+                    "direction_segments": [[2, 3], [4]]
+                }]
+            ]
         }
     ],
     "blocks": [
@@ -47,6 +83,11 @@ layout_data = {
             "block_r_id": 2
         }
     ],
+    "points": [{
+        "id": 1,
+        "initial_direction": 0,
+        "direction_segments": [2, 4]
+    }],
     "speed_traps": [
         {
             "id": 1,
@@ -318,7 +359,6 @@ def test_speed_trap(fake_factory):
     ok, msg = layout.communicator.connect("/dev/fake")
     assert ok, f"Connect failed: {msg}"
 
-    sensor: Sensor = layout.components[DeviceType.SENSOR.name][1]
     speed_trap: SpeedTrap = layout.components[DeviceType.SPEED.name][1]
 
     assert speed_trap.last_speed == 0
@@ -334,11 +374,11 @@ def test_speed_trap(fake_factory):
     fake_factory.last.inject_bytes(incoming_message)
     time.sleep(0.01)
     message = {
-            "message_type": 1,  # SET
-            "device_type": 3,   # SENSOR
-            "device_id": 1,
-            "value": 0          # ON
-        }
+        "message_type": 1,  # SET
+        "device_type": 3,   # SENSOR
+        "device_id": 1,
+        "value": 0          # ON
+    }
     incoming_message = encode_message(message)
     fake_factory.last.inject_bytes(incoming_message)
     time.sleep(0.1)
@@ -356,13 +396,69 @@ def test_speed_trap(fake_factory):
     fake_factory.last.inject_bytes(incoming_message)
     time.sleep(0.01)
     message = {
-            "message_type": 1,  # SET
-            "device_type": 3,   # SENSOR
-            "device_id": 1,
-            "value": 0          # ON
-        }
+        "message_type": 1,  # SET
+        "device_type": 3,   # SENSOR
+        "device_id": 1,
+        "value": 0          # ON
+    }
     incoming_message = encode_message(message)
     fake_factory.last.inject_bytes(incoming_message)
     time.sleep(0.1)
 
     assert speed_trap.last_speed > 0
+
+
+def test_point(fake_factory):
+    events = []
+    
+    def listener(name, value):
+        events.append((name, value))
+
+    communicator = Communicator(serial_factory=fake_factory)
+    layout = Layout(communicator)
+    layout.load(layout_data)
+    layout.add_listener(listener)
+
+    ok, msg = layout.communicator.connect("/dev/fake")
+    assert ok, f"Connect failed: {msg}"
+
+    point: Point = layout.components[DeviceType.POINT_DIRECTION.name][1]
+
+    # initial point direction
+    assert point.direction == 0
+
+    switch_point_message = Message(
+        message_type=MessageType.SET,
+        device_type=DeviceType.POINT_DIRECTION,
+        device_id=1,
+        value= 1
+    )
+
+    ok, msg = layout.command(switch_point_message)
+    assert ok, f"Point switching failed: {msg}"
+    # point direction should be switched
+    assert point.direction == 1
+
+    # inject an incoming 3-byte message with actual voltage = 10
+    message = {
+        "message_type": 1,
+        "device_type": 0,
+        "device_id": 1,
+        "value": 10
+    }
+    incoming_message = encode_message(message)
+    fake_factory.last.inject_bytes(incoming_message)
+    time.sleep(0.1)
+
+    # try to switch point
+    switch_point_message = Message(
+        message_type=MessageType.SET,
+        device_type=DeviceType.POINT_DIRECTION,
+        device_id=1,
+        value=0
+    )
+
+    # point direction should not have been switched
+    ok, msg = layout.command(switch_point_message)
+    assert not ok
+
