@@ -461,4 +461,4 @@ def test_point(fake_factory):
     # point direction should not have been switched
     ok, msg = layout.command(switch_point_message)
     assert not ok
-
+    assert point.direction == 1
