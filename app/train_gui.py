@@ -1,4 +1,5 @@
 import os
+import configparser
 from typing import Tuple, Protocol
 import tkinter as tk
 from tkinter import ttk
@@ -9,6 +10,24 @@ from scenario import ScenarioRunner, ScenarioState, ScenarioStatus
 from railway import Layout, Message, MessageType, DeviceType, Sensor, Point
 from communication import Communicator
 import diagram_helper
+
+
+class DiagramConfig:
+    def __init__(self):
+        config = configparser.ConfigParser()
+        # Read the configuration file
+        config.read('config/config.ini')
+        self.line_width = int(config.get("Diagram", "line_width"))
+        self.line_width_point_active = int(config.get(
+            "Diagram", "line_width_point_active"))
+        self.line_color = config.get("Diagram", "line_color")
+        self.electrified_color = config.get("Diagram", "electrified_color")
+        self.symbol_outline_color = config.get(
+            "Diagram", "symbol_outline_color")
+        self.symbol_outline_width = int(config.get(
+            "Diagram", "symbol_outline_width"))
+        self.symbol_fill_color = config.get("Diagram", "symbol_fill_color")
+        self.symbol_active_color = config.get("Diagram", "symbol_active_color")
 
 
 class ControllerCallback(Protocol):
@@ -57,10 +76,10 @@ class TrackControl:
         directional_voltage = voltage * self.direction.get()
 
         message = Message(
-            message_type = MessageType.SET,
-            device_type = DeviceType.TARGET_VOLTAGE,
-            device_id = self.track_id,
-            value = directional_voltage
+            message_type=MessageType.SET,
+            device_type=DeviceType.TARGET_VOLTAGE,
+            device_id=self.track_id,
+            value=directional_voltage
         )
 
         ok, msg = self.callback(message)
@@ -72,8 +91,8 @@ class TrackControl:
         else:
             self.set_message("error", msg)
             self.reset_buttons()
-        
-    def set_forward(self):  
+
+    def set_forward(self):
         self.set_message()
         if self.direction.get() == 1:
             self.set_message("info", "Already moving forward")
@@ -108,7 +127,8 @@ class TrainController:
         self.root = root
         self.root.title("N-Scale Train Controller")
 
-        self.port_var = tk.StringVar(value="/dev/cu.usbmodem101")  # Mac default; change as needed
+        # Mac default; change as needed
+        self.port_var = tk.StringVar(value="/dev/cu.usbmodem101")
         communicator = Communicator()
         self.layout = Layout(communicator)
         self.layout.add_listener(self._on_event)
@@ -131,6 +151,7 @@ class TrainController:
         self.sensor_indicators: dict[int, int] = {}
         self.segments: dict[int, Tuple[str, int]] = {}
 
+        self.diagram_config = DiagramConfig()
         self.build_ui()
 
     def build_ui(self):
@@ -140,16 +161,20 @@ class TrainController:
         self.right_frame.pack(side="right", fill="y")
 
         # Serial connection frame
-        conn_frame = ttk.LabelFrame(self.left_frame, text="Serial Connection", padding=10)
+        conn_frame = ttk.LabelFrame(
+            self.left_frame, text="Serial Connection", padding=10)
         conn_frame.pack(fill="x", padx=10, pady=5)
-        
+
         ttk.Label(conn_frame, text="Port:").grid(row=0, column=0)
-        ttk.Entry(conn_frame, textvariable=self.port_var, width=20).grid(row=0, column=1)
-        
-        self.connect_button = ttk.Button(conn_frame, text="Connect", command=self.connect_serial)
+        ttk.Entry(conn_frame, textvariable=self.port_var,
+                  width=20).grid(row=0, column=1)
+
+        self.connect_button = ttk.Button(
+            conn_frame, text="Connect", command=self.connect_serial)
         self.connect_button.grid(row=0, column=2, padx=5)
-        self.status_label = ttk.Label(conn_frame, text="Disconnected", foreground="red")
-        self.status_label.grid(row=0, column=3)       
+        self.status_label = ttk.Label(
+            conn_frame, text="Disconnected", foreground="red")
+        self.status_label.grid(row=0, column=3)
 
         self._build_diagram()
 
@@ -169,43 +194,55 @@ class TrainController:
 
         self._update_electrified_segments()
 
-        scenario_frame = ttk.LabelFrame(self.left_frame, text="Scenario", padding=10)
+        scenario_frame = ttk.LabelFrame(
+            self.left_frame, text="Scenario", padding=10)
         scenario_frame.pack(fill="x", padx=10, pady=5)
 
-        self.scenario_open_button = ttk.Button(scenario_frame, text='Load from file', command=self.select_file)
+        self.scenario_open_button = ttk.Button(
+            scenario_frame, text='Load from file', command=self.select_file)
         self.scenario_open_button.grid(row=0, column=0, padx=5)
 
-        self.run_scenario_button = ttk.Button(scenario_frame, text="Run", command=self.run_scenario, state="disabled")
+        self.run_scenario_button = ttk.Button(
+            scenario_frame, text="Run", command=self.run_scenario, state="disabled")
         self.run_scenario_button.grid(row=0, column=2, padx=5)
-        self.stop_scenario_button = ttk.Button(scenario_frame, text="Stop", command=self.stop_scenario, state="disabled")
+        self.stop_scenario_button = ttk.Button(
+            scenario_frame, text="Stop", command=self.stop_scenario, state="disabled")
         self.stop_scenario_button.grid(row=0, column=3, padx=5)
 
-        ttk.Label(scenario_frame, text="Status:").grid(row=1, column=0, sticky="w", padx=5)
-        self.scenario_status_label = ttk.Label(scenario_frame, textvariable=self.scenario_status)
-        self.scenario_status_label.grid(row=1, column=1, columnspan=3, sticky="w", padx=5)
+        ttk.Label(scenario_frame, text="Status:").grid(
+            row=1, column=0, sticky="w", padx=5)
+        self.scenario_status_label = ttk.Label(
+            scenario_frame, textvariable=self.scenario_status)
+        self.scenario_status_label.grid(
+            row=1, column=1, columnspan=3, sticky="w", padx=5)
 
-        ttk.Label(scenario_frame, text="Current step:").grid(row=2, column=0, sticky="w", padx=5)
-        self.scenario_step_label = ttk.Label(scenario_frame, textvariable=self.scenario_step)
-        self.scenario_step_label.grid(row=2, column=1, columnspan=3, sticky="w", padx=5)
+        ttk.Label(scenario_frame, text="Current step:").grid(
+            row=2, column=0, sticky="w", padx=5)
+        self.scenario_step_label = ttk.Label(
+            scenario_frame, textvariable=self.scenario_step)
+        self.scenario_step_label.grid(
+            row=2, column=1, columnspan=3, sticky="w", padx=5)
 
-        message_frame = ttk.LabelFrame(self.left_frame, text="Messages", padding=10)
+        message_frame = ttk.LabelFrame(
+            self.left_frame, text="Messages", padding=10)
         message_frame.pack(fill="x", padx=10, pady=5)
         self.message_label = ttk.Label(message_frame, text="")
         self.message_label.pack()
-
 
     def _build_speed_ui(self, speed_trap_id: int):
         DASH_FONT = tkFont.Font(family="Menlo", size=30)
         speed_display = SpeedDisplay(speed_trap_id)
 
-        dash_frame = ttk.LabelFrame(self.right_frame, text=f"Speed trap {speed_trap_id}", padding=10)
+        dash_frame = ttk.LabelFrame(
+            self.right_frame, text=f"Speed trap {speed_trap_id}", padding=10)
         dash_frame.pack(side="top")
-        
-        speed_display.speed_label = ttk.Label(dash_frame, textvariable=speed_display.last_speed, font=DASH_FONT, width=5, justify=tk.CENTER)
-        speed_display.speed_label.grid(row=0, column=0)
-        ttk.Label(dash_frame, text="km/h", width=5, justify=tk.LEFT).grid(row=1, column=0)
-        self.speed_displays[speed_trap_id] = speed_display
 
+        speed_display.speed_label = ttk.Label(
+            dash_frame, textvariable=speed_display.last_speed, font=DASH_FONT, width=5, justify=tk.CENTER)
+        speed_display.speed_label.grid(row=0, column=0)
+        ttk.Label(dash_frame, text="km/h", width=5,
+                  justify=tk.LEFT).grid(row=1, column=0)
+        self.speed_displays[speed_trap_id] = speed_display
 
     def _build_control_ui(self, track_id: int):
         DASH_FONT = tkFont.Font(family="Menlo", size=30)
@@ -215,24 +252,30 @@ class TrainController:
         track_frame = ttk.LabelFrame(self.left_frame, padding=10)
         track_frame.pack(fill="x", padx=10, pady=5)
 
-        dash_frame = ttk.LabelFrame(track_frame, text=f"Track {track_id} Voltage", padding=0)
+        dash_frame = ttk.LabelFrame(
+            track_frame, text=f"Track {track_id} Voltage", padding=0)
         dash_frame.pack(fill="x", padx=0, pady=0)
         ttk.Label(dash_frame, text="Direction").grid(row=0, column=0)
         ttk.Label(dash_frame, text="Target").grid(row=0, column=1)
         ttk.Label(dash_frame, text="Actual").grid(row=0, column=2)
-        track_control.direction_label = ttk.Label(dash_frame, textvariable=track_control.direction, font=DASH_FONT, width=3, justify=tk.CENTER)
+        track_control.direction_label = ttk.Label(
+            dash_frame, textvariable=track_control.direction, font=DASH_FONT, width=3, justify=tk.CENTER)
         track_control.direction_label.grid(row=1, column=0, padx=5)
-        track_control.target_voltage_label = ttk.Label(dash_frame, textvariable=track_control.target_voltage, font=DASH_FONT, width=3, justify=tk.RIGHT)
+        track_control.target_voltage_label = ttk.Label(
+            dash_frame, textvariable=track_control.target_voltage, font=DASH_FONT, width=3, justify=tk.RIGHT)
         track_control.target_voltage_label.grid(row=1, column=1, padx=5)
-        track_control.actual_voltage_label = ttk.Label(dash_frame, textvariable=track_control.actual_voltage, font=DASH_FONT, width=3, justify=tk.RIGHT)
+        track_control.actual_voltage_label = ttk.Label(
+            dash_frame, textvariable=track_control.actual_voltage, font=DASH_FONT, width=3, justify=tk.RIGHT)
         track_control.actual_voltage_label.grid(row=1, column=2, padx=5)
 
         control_frame = ttk.LabelFrame(track_frame, padding=0)
         control_frame.pack(fill="x", padx=0, pady=0)
 
-        track_control.reverse_button = ttk.Button(control_frame, text="◀ REV", state="normal", command=track_control.set_reverse)
+        track_control.reverse_button = ttk.Button(
+            control_frame, text="◀ REV", state="normal", command=track_control.set_reverse)
         track_control.reverse_button.grid(row=0, column=0, padx=2)
-        track_control.forward_button = ttk.Button(control_frame, text="FWD ▶", state="disabled", command=track_control.set_forward)
+        track_control.forward_button = ttk.Button(
+            control_frame, text="FWD ▶", state="disabled", command=track_control.set_forward)
         track_control.forward_button.grid(row=0, column=1, padx=2)
 
         track_control.control_buttons = []
@@ -243,7 +286,8 @@ class TrainController:
                 btn = ttk.Button(control_frame, text=label)
                 btn.grid(row=1, column=idx, padx=2)
                 track_control.control_buttons.append(btn)
-                btn.config(command=lambda v=voltage, b=btn: track_control.set_voltage(v, b))
+                btn.config(command=lambda v=voltage,
+                           b=btn: track_control.set_voltage(v, b))
         except Exception as e:
             print(f"Error building control buttons: {e}")
 
@@ -260,38 +304,41 @@ class TrainController:
             segments: list = self.layout.diagram_data.get("segments")
             for s in segments:
                 if s["shape"] == "straight":
-                    segment = self.canvas.create_line(s["start_point"][0], s["start_point"][1], s["end_point"][0], s["end_point"][1], width=2)
+                    segment = self.canvas.create_line(
+                        s["start_point"][0], s["start_point"][1], s["end_point"][0], s["end_point"][1], width=self.diagram_config.line_width)
                     self.segments[s["id"]] = "straight", segment
                 elif s["shape"] == "curve":
                     p = diagram_helper.curve_to_tkinter_arc(s)
-                    segment = self.canvas.create_arc(p["x1"], p["y1"], p["x2"], p["y2"], start=p["start"], extent=p["extent"], style=tk.ARC, width=2)
+                    segment = self.canvas.create_arc(
+                        p["x1"], p["y1"], p["x2"], p["y2"], start=p["start"], extent=p["extent"], style=tk.ARC, width=self.diagram_config.line_width)
                     self.segments[s["id"]] = "curve", segment
                 # self.canvas.create_text(s["start_point"][0], s["start_point"][1], text=str(s["id"]), fill="red")
                 if s.get("feeder") == True:
                     cx: float = (s["end_point"][0] + s["start_point"][0]) / 2
                     cy: float = (s["end_point"][1] + s["start_point"][1]) / 2
-                    self.canvas.create_polygon(diagram_helper.feeder_symbol(cx, cy), fill="lime", outline="systemTextColor", width=1)
+                    self.canvas.create_polygon(diagram_helper.feeder_symbol(
+                        cx, cy), fill="lime", outline=self.diagram_config.symbol_outline_color, width=self.diagram_config.symbol_outline_width)
                 self.canvas.pack()
         except Exception as exc:
             print(f"Error drawing diagram: {str(exc)}")
 
-
     def _build_point_diagram(self, point: Point):
         try:
-            updateLambda = lambda p: self._switch_point_direction(point=point)
+            def updateLambda(
+                p): return self._switch_point_direction(point=point)
             for direction_segment_id in point.direction_segments:
-                self.canvas.tag_bind(self.segments[direction_segment_id][1], '<Button-1>', updateLambda)
+                self.canvas.tag_bind(
+                    self.segments[direction_segment_id][1], '<Button-1>', updateLambda)
             self._update_point_diagram(point)
         except Exception as exc:
             print(f"Error building point: {point}")
-
 
     def _switch_point_direction(self, point: Point):
         # TODO: move to railway/layout?
         try:
             for index in range(len(point.direction_segments)):
                 if index != point.direction:
-                    message = Message (
+                    message = Message(
                         message_type=MessageType.SET,
                         device_type=DeviceType.POINT_DIRECTION,
                         device_id=point.id,
@@ -306,18 +353,18 @@ class TrainController:
         except Exception as exc:
             print(f"_switch_point_direction exception: {str(exc)}")
 
-    
     def _update_point_diagram(self, point: Point):
-        try:    
+        try:
             for index, segment_id in enumerate(point.direction_segments):
                 if index == point.direction:
-                    self.canvas.itemconfig(self.segments[segment_id][1], width=6)
+                    self.canvas.itemconfig(
+                        self.segments[segment_id][1], width=self.diagram_config.line_width_point_active)
                     self.canvas.tag_raise(self.segments[segment_id][1])
                 else:
-                    self.canvas.itemconfig(self.segments[segment_id][1], width=2)
+                    self.canvas.itemconfig(
+                        self.segments[segment_id][1], width=self.diagram_config.line_width)
         except Exception as exc:
             print(f"Failed to update point diagram: {str(exc)}")
-
 
     def _add_sensor_indicator(self, sensor: Sensor):
         if sensor.diagram_data is None:
@@ -330,7 +377,8 @@ class TrainController:
             y1 = s[1] - 10
             x2 = s[0] + 10
             y2 = s[1] + 10
-            sensor_indicator_id = self.canvas.create_oval(x1, y1, x2, y2, fill="white")
+            sensor_indicator_id = self.canvas.create_oval(
+                x1, y1, x2, y2, fill=self.diagram_config.symbol_fill_color)
             self.sensor_indicators[sensor.id] = sensor_indicator_id
 
         except Exception as exc:
@@ -341,22 +389,23 @@ class TrainController:
             electrified_segments = self.layout.electrified_segments()
             for segment in self.segments.values():
                 if segment[0] == "straight":
-                    self.canvas.itemconfig(segment[1], fill="systemTextColor")
+                    self.canvas.itemconfig(segment[1], fill=self.diagram_config.line_color)
                 elif segment[0] == "curve":
-                    self.canvas.itemconfig(segment[1], outline="systemTextColor")
+                    self.canvas.itemconfig(
+                        segment[1], outline=self.diagram_config.line_color)
             for track_segment_ids in electrified_segments.values():
                 for segment_id in track_segment_ids:
                     segment = self.segments[segment_id]
                     if segment[0] == "straight":
-                        self.canvas.itemconfig(segment[1], fill="lime")
+                        self.canvas.itemconfig(segment[1], fill=self.diagram_config.electrified_color)
                     elif segment[0] == "curve":
-                        self.canvas.itemconfig(segment[1], outline="lime")
+                        self.canvas.itemconfig(segment[1], outline=self.diagram_config.electrified_color)
         except Exception as exc:
             print(f"_update_electrified_segments exception: {str(exc)}")
 
-
     def select_file(self):
-        filepath = fd.askopenfilename(title='Open a file', initialdir=os.path.join("data", "scenarios"), filetypes=[('JSON files', '*.json')])
+        filepath = fd.askopenfilename(title='Open a file', initialdir=os.path.join(
+            "data", "scenarios"), filetypes=[('JSON files', '*.json')])
         if len(filepath) > 0:
             self.load_scenario_file(filepath)
 
@@ -371,10 +420,11 @@ class TrainController:
         ok, msg = self.scenario_runner.load_scenario(data)
         if ok:
             self.scenario_step.set("")
-            self.set_message("info", f"Scenario loaded: {data.get('name', self.scenario_runner.scenario.name)}")
+            self.set_message(
+                "info", f"Scenario loaded: {data.get('name', self.scenario_runner.scenario.name)}")
         else:
             self.set_message("error", f"Scenario failed to load: {msg}")
-        
+
     def run_scenario(self):
         if not self.scenario_runner:
             self.set_message("warning", "Load a scenario first")
@@ -407,7 +457,6 @@ class TrainController:
             self.connect_button.config(state="normal")
             self.set_message("error", str(e))
 
-
     def set_message(self, level="", message=""):
         """Display a message in the message label with a given level (info, warning, error)."""
         if level == "info":
@@ -418,8 +467,6 @@ class TrainController:
             self.message_label.config(text=message, foreground="red")
         else:
             self.message_label.config(text=message, foreground="")
-
-    
 
     def _on_scenario_event(self, name, value):
         def apply_event():
@@ -441,7 +488,8 @@ class TrainController:
                     self.run_scenario_button.config(state="normal")
                     self.stop_scenario_button.config(state="disabled")
                     self.set_message("error", scenario_state.message)
-                self.scenario_status.set(f"{scenario_state.status.value} {self.scenario_runner.scenario.name}")
+                self.scenario_status.set(
+                    f"{scenario_state.status.value} {self.scenario_runner.scenario.name}")
                 if scenario_state.step is not None:
                     self.scenario_step.set(str(scenario_state.step.name))
                 else:
@@ -456,7 +504,8 @@ class TrainController:
                     message: Message = value
                     self._handle_component_event(message)
                 except Exception as exc:
-                    self.set_message("error", f"Error handling component event: {str(exc)}")
+                    self.set_message(
+                        "error", f"Error handling component event: {str(exc)}")
             elif name == "status":
                 txt = str(value).capitalize()
                 fg = "green" if str(value).lower() == "connected" else "red"
@@ -482,16 +531,18 @@ class TrainController:
         elif message.device_type == DeviceType.SPEED:
             speed_display = self.speed_displays.get(message.device_id)
             if not speed_display is None:
-                speed: float = float(message.value) * self.layout.scale * 0.0036 # convert to scale in km/h
+                # convert to scale in km/h
+                speed: float = float(message.value) * \
+                    self.layout.scale * 0.0036
                 speed_display.last_speed.set(speed)
         elif message.device_type == DeviceType.SENSOR:
             sensor_indicator = self.sensor_indicators.get(message.device_id)
             if not sensor_indicator is None:
                 if message.value == 1:
-                    self.canvas.itemconfig(sensor_indicator, fill="red")
+                    self.canvas.itemconfig(sensor_indicator, fill=self.diagram_config.symbol_active_color)
                 elif message.value == 0:
                     def sensor_indicator_off():
-                        self.canvas.itemconfig(sensor_indicator, fill="white")
+                        self.canvas.itemconfig(sensor_indicator, fill=self.diagram_config.symbol_fill_color)
                     self.root.after(100, sensor_indicator_off)
         elif message.device_type == DeviceType.POINT_DIRECTION:
             try:
