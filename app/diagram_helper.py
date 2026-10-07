@@ -45,3 +45,25 @@ def mid_point(segment):
     x = (segment["start_point"][0] + segment["end_point"][0]) / 2
     y = (segment["start_point"][1] + segment["end_point"][1]) / 2
     return x, y
+
+
+def feeder_symbol(cx:float, cy:float):
+    x0 = cx
+    y0 = cy - 10
+
+    x1 = cx
+    y1 = cy - 2
+
+    x2 = cx + 4
+    y2 = cy - 2
+
+    x3 = cx
+    y3 = cy + 10
+
+    x4 = cx
+    y4 = cy + 2
+
+    x5 = cx - 4
+    y5 = cy + 2
+
+    return x0, y0, x1, y1, x2, y2, x3, y3, x4, y4, x5, y5

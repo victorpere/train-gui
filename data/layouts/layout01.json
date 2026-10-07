@@ -8,7 +8,8 @@
         "id": 1,
         "shape": "straight",
         "start_point": [150, 50],
-        "end_point": [200, 50]
+        "end_point": [200, 50],
+        "feeder": true
       },
       {
         "id": 8,

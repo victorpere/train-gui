@@ -267,7 +267,11 @@ class TrainController:
                     segment = self.canvas.create_arc(p["x1"], p["y1"], p["x2"], p["y2"], start=p["start"], extent=p["extent"], style=tk.ARC, width=2)
                     self.segments[s["id"]] = "curve", segment
                 # self.canvas.create_text(s["start_point"][0], s["start_point"][1], text=str(s["id"]), fill="red")
-            self.canvas.pack()
+                if s.get("feeder") == True:
+                    cx: float = (s["end_point"][0] + s["start_point"][0]) / 2
+                    cy: float = (s["end_point"][1] + s["start_point"][1]) / 2
+                    self.canvas.create_polygon(diagram_helper.feeder_symbol(cx, cy), fill="lime", outline="systemTextColor", width=1)
+                self.canvas.pack()
         except Exception as exc:
             print(f"Error drawing diagram: {str(exc)}")
 
