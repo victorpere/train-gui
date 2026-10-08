@@ -48,7 +48,7 @@ def mid_point(segment):
 
 
 def feeder_symbol(cx:float, cy:float):
-    x0 = cx
+    x0 = cx + 1
     y0 = cy - 10
 
     x1 = cx
@@ -57,7 +57,7 @@ def feeder_symbol(cx:float, cy:float):
     x2 = cx + 4
     y2 = cy - 2
 
-    x3 = cx
+    x3 = cx - 1
     y3 = cy + 10
 
     x4 = cx
@@ -67,3 +67,20 @@ def feeder_symbol(cx:float, cy:float):
     y5 = cy + 2
 
     return x0, y0, x1, y1, x2, y2, x3, y3, x4, y4, x5, y5
+
+
+def isolator_symbol(cx: float, cy: float):
+    p0 = cx, cy - 2
+    p1 = cx + 4, cy - 6
+    p2 = cx + 6, cy - 4
+    p3 = cx + 2, cy
+    p4 = cx + 6, cy + 4
+    p5 = cx + 4, cy + 6
+    p6 = cx, cy + 2
+    p7 = cx - 4, cy + 6
+    p8 = cx - 6, cy + 4
+    p9 = cx - 2, cy
+    p10 = cx - 6, cy - 4
+    p11 = cx - 4, cy - 6
+
+    return p0, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11
