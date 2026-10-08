@@ -1,5 +1,5 @@
 from fake_serial import FakeSerial
-from util import encode_message
+from util import encode_message, load_data_from_file
 from railway import Layout, DeviceType, Message, MessageType, Sensor, Block, Track, SpeedTrap, Point
 from communication import Communicator
 import pytest
@@ -21,83 +21,7 @@ def fake_factory():
     return factory
 
 
-layout_data = {
-    "name": "test layout",
-    "description": "layout with one track, two blocks and one sensor",
-    "scale": 150.0,
-    "diagram": {
-        "segments": [
-            {
-                "id": 1,
-                "shape": "straight",
-                "start_point": [0, 0],
-                "end_point": [10, 0]
-            },
-            {
-                "id": 2,
-                "shape": "straight",
-                "start_point": [10, 0],
-                "end_point": [20, 0]
-            },
-            {
-                "id": 3,
-                "shape": "straight",
-                "start_point": [20, 0],
-                "end_point": [30, 0]
-            },
-            {
-                "id": 4,
-                "shape": "curve",
-                "start_point": [10, 0],
-                "end_point": [20, 10]
-            }
-        ]
-    },
-    "tracks": [
-        {
-            "id": 1,
-            "feeder_segment_id": 1,
-            "segments": [
-                [1, {
-                    "point_id": 1,
-                    "direction_segments": [[2, 3], [4]]
-                }]
-            ]
-        }
-    ],
-    "blocks": [
-        {
-            "id": 1,
-            "occupied": False
-        },
-        {
-            "id": 2,
-            "occupied": True
-        }
-    ],
-    "sensors": [
-        {
-            "id": 1,
-            "track_id": 1,
-            "block_f_id": 1,
-            "block_r_id": 2
-        }
-    ],
-    "points": [{
-        "id": 1,
-        "initial_direction": 0,
-        "direction_segments": [2, 4]
-    }],
-    "speed_traps": [
-        {
-            "id": 1,
-            "track_id": 1,
-            "sensor_1_id": 1,
-            "sensor_2_id": 1,
-            "distance": 10
-        }
-    ]
-}
+layout_data = load_data_from_file("tests/data/test_layout01.json")
 
 
 def test_layout_invalid_command(fake_factory):
@@ -410,7 +334,7 @@ def test_speed_trap(fake_factory):
 
 def test_point(fake_factory):
     events = []
-    
+
     def listener(name, value):
         events.append((name, value))
 
@@ -431,7 +355,7 @@ def test_point(fake_factory):
         message_type=MessageType.SET,
         device_type=DeviceType.POINT_DIRECTION,
         device_id=1,
-        value= 1
+        value=1
     )
 
     ok, msg = layout.command(switch_point_message)
