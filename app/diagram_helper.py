@@ -84,3 +84,12 @@ def isolator_symbol(cx: float, cy: float):
     p11 = cx - 4, cy - 6
 
     return p0, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11
+
+
+def round_symbol(cx: float, cy: float, diameter: float):
+    radius = diameter / 2
+    x1 = cx - radius
+    y1 = cy - radius
+    x2 = cx + radius
+    y2 = cy + radius
+    return x1, y1, x2, y2

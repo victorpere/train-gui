@@ -28,6 +28,8 @@ class DiagramConfig:
             "Diagram", "symbol_outline_width"))
         self.symbol_fill_color = config.get("Diagram", "symbol_fill_color")
         self.symbol_active_color = config.get("Diagram", "symbol_active_color")
+        self.symbol_diameter = float(config.get("Diagram", "symbol_diameter"))
+        self.symbol_text_color = config.get("Diagram", "symbol_text_color")
 
 
 class ControllerCallback(Protocol):
@@ -373,14 +375,10 @@ class TrainController:
         if s is None:
             return
         try:
-            x1 = s[0] - 10
-            y1 = s[1] - 10
-            x2 = s[0] + 10
-            y2 = s[1] + 10
             sensor_indicator_id = self.canvas.create_oval(
-                x1, y1, x2, y2, fill=self.diagram_config.symbol_fill_color)
+                diagram_helper.round_symbol(s[0], s[1], self.diagram_config.symbol_diameter), fill=self.diagram_config.symbol_fill_color)
+            self.canvas.create_text(s[0], s[1], text=f"S{sensor.id}", fill=self.diagram_config.symbol_text_color)
             self.sensor_indicators[sensor.id] = sensor_indicator_id
-
         except Exception as exc:
             print(f"Error drawing sensor: {str(exc)}")
 
@@ -389,7 +387,8 @@ class TrainController:
             electrified_segments = self.layout.electrified_segments()
             for segment in self.segments.values():
                 if segment[0] == "straight":
-                    self.canvas.itemconfig(segment[1], fill=self.diagram_config.line_color)
+                    self.canvas.itemconfig(
+                        segment[1], fill=self.diagram_config.line_color)
                 elif segment[0] == "curve":
                     self.canvas.itemconfig(
                         segment[1], outline=self.diagram_config.line_color)
@@ -397,9 +396,11 @@ class TrainController:
                 for segment_id in track_segment_ids:
                     segment = self.segments[segment_id]
                     if segment[0] == "straight":
-                        self.canvas.itemconfig(segment[1], fill=self.diagram_config.electrified_color)
+                        self.canvas.itemconfig(
+                            segment[1], fill=self.diagram_config.electrified_color)
                     elif segment[0] == "curve":
-                        self.canvas.itemconfig(segment[1], outline=self.diagram_config.electrified_color)
+                        self.canvas.itemconfig(
+                            segment[1], outline=self.diagram_config.electrified_color)
         except Exception as exc:
             print(f"_update_electrified_segments exception: {str(exc)}")
 
@@ -539,10 +540,12 @@ class TrainController:
             sensor_indicator = self.sensor_indicators.get(message.device_id)
             if not sensor_indicator is None:
                 if message.value == 1:
-                    self.canvas.itemconfig(sensor_indicator, fill=self.diagram_config.symbol_active_color)
+                    self.canvas.itemconfig(
+                        sensor_indicator, fill=self.diagram_config.symbol_active_color)
                 elif message.value == 0:
                     def sensor_indicator_off():
-                        self.canvas.itemconfig(sensor_indicator, fill=self.diagram_config.symbol_fill_color)
+                        self.canvas.itemconfig(
+                            sensor_indicator, fill=self.diagram_config.symbol_fill_color)
                     self.root.after(100, sensor_indicator_off)
         elif message.device_type == DeviceType.POINT_DIRECTION:
             try:
