@@ -316,10 +316,9 @@ class TrainController:
                     self.segments[s["id"]] = "curve", segment
                 # self.canvas.create_text(s["start_point"][0], s["start_point"][1], text=str(s["id"]), fill="red")
                 if s.get("feeder") == True:
-                    cx: float = (s["end_point"][0] + s["start_point"][0]) / 2
-                    cy: float = (s["end_point"][1] + s["start_point"][1]) / 2
+                    segment_center = diagram_helper.center_point(s)
                     self.canvas.create_polygon(diagram_helper.feeder_symbol(
-                        cx, cy), fill="lime", outline=self.diagram_config.symbol_outline_color, width=self.diagram_config.symbol_outline_width)
+                        segment_center[0], segment_center[1]), fill=self.diagram_config.electrified_color, outline=self.diagram_config.symbol_outline_color, width=self.diagram_config.symbol_outline_width)
                 self.canvas.pack()
         except Exception as exc:
             print(f"Error drawing diagram: {str(exc)}")

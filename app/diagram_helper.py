@@ -93,3 +93,9 @@ def round_symbol(cx: float, cy: float, diameter: float):
     x2 = cx + radius
     y2 = cy + radius
     return x1, y1, x2, y2
+
+
+def center_point(segment: dict):
+    segment_center_x = (segment["start_point"][0] + segment["end_point"][0]) / 2
+    segment_center_y = (segment["start_point"][1] + segment["end_point"][1]) / 2
+    return segment_center_x, segment_center_y
