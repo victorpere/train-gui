@@ -57,15 +57,15 @@
         "id": 6,
         "shape": "curve",
         "start_point": [250, 60],
-        "end_point": [300, 70],
-        "start_angle": -105,
-        "extent": 15
+        "end_point": [290, 90],
+        "start_angle": 75,
+        "extent": -15
       },
       {
         "id": 7,
         "shape": "straight",
-        "start_point": [300, 70],
-        "end_point": [400, 70]
+        "start_point": [290, 90],
+        "end_point": [450, 150]
       },
       {
         "id": 10,
@@ -77,7 +77,7 @@
         "id": 11,
         "shape": "straight",
         "start_point": [300, 80],
-        "end_point": [450, 140]
+        "end_point": [460, 140]
       }
     ]
   },

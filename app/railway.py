@@ -186,7 +186,6 @@ class Layout:
            Notifies listeners.
         """
         # print(f"_on_component_event message received: {message}")
-        # TODO: turn on send point direction when ready
         if message.device_type == DeviceType.TARGET_VOLTAGE and message.message_type == MessageType.SET or \
            message.device_type == DeviceType.POINT_DIRECTION and message.message_type == MessageType.SET:
             print(f"sending message to communicator: {message.value}")
