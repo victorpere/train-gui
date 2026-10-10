@@ -74,7 +74,8 @@ class Layout:
                 self.components[device_type_name] = dict()
 
             for track_data in tracks:
-                track = Track(track_data.get("id"), self._on_component_event, self.command, feeder_segment_id=track_data.get("feeder_segment_id"), segments_data=track_data.get("segments"))
+                track = Track(track_data.get("id"), self._on_component_event, self.command, feeder_segment_id=track_data.get(
+                    "feeder_segment_id"), segments_data=track_data.get("segments"))
                 self.components[DeviceType.TARGET_VOLTAGE.name][track.id] = track
                 self.components[DeviceType.ACTUAL_VOLTAGE.name][track.id] = track
 
@@ -90,11 +91,11 @@ class Layout:
                 self.components[DeviceType.SENSOR.name][sensor.id] = sensor
 
             for speed_trap_data in speed_traps:
-                speed_trap = SpeedTrap(id=speed_trap_data.get("id"), \
-                                       track_id=speed_trap_data.get("track_id"), \
-                                       sensor_1_id=speed_trap_data.get("sensor_1_id"), \
-                                       sensor_2_id=speed_trap_data.get("sensor_2_id"), \
-                                       distance=speed_trap_data.get("distance"), \
+                speed_trap = SpeedTrap(id=speed_trap_data.get("id"),
+                                       track_id=speed_trap_data.get("track_id"),
+                                       sensor_1_id=speed_trap_data.get("sensor_1_id"),
+                                       sensor_2_id=speed_trap_data.get("sensor_2_id"),
+                                       distance=speed_trap_data.get("distance"),
                                        cb=self._on_component_event)
                 self.add_listener(speed_trap.receive_component_event)
                 self.components[DeviceType.SPEED.name][speed_trap.id] = speed_trap
@@ -143,8 +144,6 @@ class Layout:
         points = self.components.get(DeviceType.POINT_DIRECTION.name)
         sleep(delay)
         for point in points.values():
-            print(f"initializing point: {point.id}")
-            print(f"set direction to {point.direction}")
             message = Message(
                 message_type=MessageType.SET,
                 device_type=DeviceType.POINT_DIRECTION,
@@ -154,7 +153,6 @@ class Layout:
             ok, msg = self.command(message)
             if not ok:
                 print(f"error initializing point {point.id}: {msg}")
-        
 
     def _send_message(self, message: Message):
         """Sends message via communicator"""
@@ -187,10 +185,10 @@ class Layout:
                 device_value = value.get("value")
 
                 message = Message(
-                    message_type = MessageType(message_type),
-                    device_type = DeviceType(device_type),
-                    device_id = device_id,
-                    value = device_value
+                    message_type=MessageType(message_type),
+                    device_type=DeviceType(device_type),
+                    device_id=device_id,
+                    value=device_value
                 )
 
                 ok, msg = self.command(message)
@@ -271,8 +269,10 @@ class Track:
 
     @property
     def actual_direction(self):
-        if self._actual_voltage == 0: return 0
-        if self._actual_voltage > 0: return 1
+        if self._actual_voltage == 0:
+            return 0
+        if self._actual_voltage > 0:
+            return 1
         return -1
 
     @property
@@ -283,19 +283,18 @@ class Track:
     def actual_voltage(self):
         return self._actual_voltage
 
-
     def set_voltage(self, voltage: int) -> Tuple[bool, str]:
         if (voltage > 0 and (self._target_voltage < 0 or self._actual_voltage < 0)) or \
-            (voltage < 0 and (self._target_voltage > 0 or self._actual_voltage > 0)):
+                (voltage < 0 and (self._target_voltage > 0 or self._actual_voltage > 0)):
             return False, "Must be stopped before changing directions"
-        
+
         try:
             self._target_voltage = voltage
             message = Message(
-                message_type = MessageType.SET,
-                device_type = DeviceType.TARGET_VOLTAGE,
-                device_id = self.id,
-                value = self._target_voltage
+                message_type=MessageType.SET,
+                device_type=DeviceType.TARGET_VOLTAGE,
+                device_id=self.id,
+                value=self._target_voltage
             )
             ok, msg = self._cb(message)
             return ok, msg
@@ -334,10 +333,10 @@ class Block:
         if self._occupied != value:
             self._occupied = value
             message: Message = Message(
-                message_type = MessageType.SET,
-                device_type = DeviceType.BLOCK,
-                device_id = self.id,
-                value = int(self._occupied)
+                message_type=MessageType.SET,
+                device_type=DeviceType.BLOCK,
+                device_id=self.id,
+                value=int(self._occupied)
             )
             self._cb(message)
 
@@ -351,8 +350,7 @@ class Sensor:
     """Sensor that detects train presence
     """
 
-    def __init__(self, id: int, track: Track, block_f: Block, block_r: Block, \
-                 cb: Callback, diagram_data: dict = None):
+    def __init__(self, id: int, track: Track, block_f: Block, block_r: Block, cb: Callback, diagram_data: dict = None):
         self.id = id
         self._track = track
         self._block_f: Block = block_f
@@ -383,9 +381,9 @@ class Sensor:
         elif message.message_type == MessageType.QUERY and message.device_type == DeviceType.SENSOR:
             return True, int(self.on)
         return False, "Unknown message"
-        
+
     def _detect_on(self) -> Tuple[bool, str]:
-        if self._on: 
+        if self._on:
             return False, "Already on"
         self._on = True
         self._block_f.occupied = True
@@ -492,5 +490,5 @@ class Point:
                 return self._cb(message)
             elif message.message_type == MessageType.QUERY:
                 return True, str(self._direction)
-        
+
         return False, f"Point.process_messageUnknown did not process: {message}"
