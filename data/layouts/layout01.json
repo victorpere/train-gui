@@ -83,19 +83,19 @@
   },
   "tracks": [
     {
-      "id": 1,
+      "id": 0,
       "feeder_segment_id": 1,
       "segments": [
         [4, 3],
         [
           {
-            "point_id": 1,
+            "point_id": 0,
             "direction_segments": [
               [8, 9, 2],
               [
                 5,
                 {
-                  "point_id": 2,
+                  "point_id": 1,
                   "direction_segments": [
                     [10, 11],
                     [6, 7]
@@ -110,17 +110,17 @@
   ],
   "blocks": [
     {
-      "id": 1,
+      "id": 0,
       "occupied": true,
       "track_id": 1
     }
   ],
   "sensors": [
     {
-      "id": 1,
-      "track_id": 1,
-      "block_f_id": 1,
-      "block_r_id": 1,
+      "id": 0,
+      "track_id": 0,
+      "block_f_id": 0,
+      "block_r_id": 0,
       "diagram": {
         "location": [440, 50]
       }
@@ -128,22 +128,22 @@
   ],
   "points": [
     {
-      "id": 1,
+      "id": 0,
       "initial_direction": 0,
       "direction_segments": [8, 5]
     },
     {
-      "id": 2,
+      "id": 1,
       "initial_direction": 0,
       "direction_segments": [10, 6]
     }
   ],
   "speed_traps": [
     {
-      "id": 1,
-      "track_id": 1,
-      "sensor_1_id": 1,
-      "sensor_2_id": 1,
+      "id": 0,
+      "track_id": 0,
+      "sensor_1_id": 0,
+      "sensor_2_id": 0,
       "distance": 2680.5
     }
   ]
