@@ -84,10 +84,7 @@ class Layout:
                 self.components[DeviceType.BLOCK.name][block.id] = block
 
             for sensor_data in sensors:
-                track = self.components[DeviceType.TARGET_VOLTAGE.name][sensor_data.get("track_id")]
-                block_f = self.components[DeviceType.BLOCK.name][sensor_data.get("block_f_id")]
-                block_r = self.components[DeviceType.BLOCK.name][sensor_data.get("block_r_id")]
-                sensor = Sensor(sensor_data.get("id"), track, block_f, block_r, self._on_component_event, sensor_data.get("diagram"))
+                sensor = Sensor(sensor_data.get("id"), self._on_component_event, sensor_data.get("diagram"))
                 self.components[DeviceType.SENSOR.name][sensor.id] = sensor
 
             for speed_trap_data in speed_traps:
@@ -350,11 +347,8 @@ class Sensor:
     """Sensor that detects train presence
     """
 
-    def __init__(self, id: int, track: Track, block_f: Block, block_r: Block, cb: Callback, diagram_data: dict = None):
+    def __init__(self, id: int, cb: Callback, diagram_data: dict = None):
         self.id = id
-        self._track = track
-        self._block_f: Block = block_f
-        self._block_r: Block = block_r
         self._cb = cb
         self.diagram_data = diagram_data
         self._on: bool = False
@@ -386,20 +380,12 @@ class Sensor:
         if self._on:
             return False, "Already on"
         self._on = True
-        self._block_f.occupied = True
-        self._block_r.occupied = True
         return True, ""
 
     def _detect_off(self) -> Tuple[bool, str]:
         if not self._on:
             return False, "Already off"
         self._on = False
-        if self._track.actual_direction == 1:
-            self._block_r.occupied = False
-            self._block_f.occupied = True
-        elif self._track.actual_direction == -1:
-            self._block_f.occupied = False
-            self._block_r.occupied = True
         return True, ""
 
 

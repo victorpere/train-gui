@@ -118,9 +118,6 @@
   "sensors": [
     {
       "id": 0,
-      "track_id": 0,
-      "block_f_id": 0,
-      "block_r_id": 0,
       "diagram": {
         "location": [440, 50]
       }
