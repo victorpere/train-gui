@@ -1,0 +1,37 @@
+{
+    "name": "bumper stop test",
+    "description": "test sensor position for stopping",
+    "times": 1,
+    "steps": [
+        {
+            "action": "DEVICE_SET",
+            "device_type": "POINT_DIRECTION",
+            "device_id": 0,
+            "value": 1
+        },
+        {
+            "action": "DEVICE_SET",
+            "device_type": "POINT_DIRECTION",
+            "device_id": 1,
+            "value": 0
+        },
+        {
+            "action": "DEVICE_SET",
+            "device_type": "TARGET_VOLTAGE",
+            "device_id": 0,
+            "value": 80
+        },
+        {
+            "action": "DEVICE_WAIT",
+            "device_type": "SENSOR",
+            "device_id": 1,
+            "value": 1
+        },
+        {
+            "action": "DEVICE_SET",
+            "device_type": "TARGET_VOLTAGE",
+            "device_id": 0,
+            "value": 0
+        }
+    ]
+}

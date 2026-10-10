@@ -133,7 +133,19 @@
     {
       "id": 1,
       "diagram": {
-        "location": [460, 140]
+        "location": [410, 120]
+      }
+    },
+    {
+      "id": 2,
+      "diagram": {
+        "location": [395, 148]
+      }
+    },
+    {
+      "id": 3,
+      "diagram": {
+        "location": [450, 250]
       }
     }
   ],
