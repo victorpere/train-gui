@@ -1,4 +1,4 @@
-from time import monotonic
+from time import monotonic, sleep
 from pydantic import BaseModel
 from typing import List, Tuple, Protocol, overload
 from enum import Enum
@@ -136,8 +136,25 @@ class Layout:
         for track_component in track_components.values():
             track: Track = track_component
             segments[track.id] = track.electrified_segments()
-        print(f"Layout.electrified_segments: {segments}")
+        # print(f"Layout.electrified_segments: {segments}")
         return segments
+
+    def _initialize(self):
+        points = self.components.get(DeviceType.POINT_DIRECTION.name)
+        sleep(1)
+        for point in points.values():
+            print(f"initializing point: {point.id}")
+            print(f"set direction to {point.direction}")
+            message = Message(
+                message_type=MessageType.SET,
+                device_type=DeviceType.POINT_DIRECTION,
+                device_id=point.id,
+                value=point.direction
+            )
+            ok, msg = self.command(message)
+            if not ok:
+                print(f"error initializing point {point.id}: {msg}")
+        
 
     def _send_message(self, message: Message):
         """Sends message via communicator"""
@@ -160,6 +177,8 @@ class Layout:
         if name == "status":
             for cb in list(self._listeners):
                 cb(name, str(value))
+            if value == "connected":
+                self._initialize()
         elif name == "message":
             try:
                 message_type = value.get("message_type")
@@ -188,7 +207,7 @@ class Layout:
         # print(f"_on_component_event message received: {message}")
         if message.device_type == DeviceType.TARGET_VOLTAGE and message.message_type == MessageType.SET or \
            message.device_type == DeviceType.POINT_DIRECTION and message.message_type == MessageType.SET:
-            print(f"sending message to communicator: {message.value}")
+            print(f"sending message to communicator: {message}")
             ok, msg = self._send_message(message)
             print(f"response from communicator: {ok}:{msg}")
             if not ok:

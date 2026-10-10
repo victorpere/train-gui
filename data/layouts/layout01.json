@@ -97,8 +97,8 @@
                 {
                   "point_id": 2,
                   "direction_segments": [
-                    [6, 7],
-                    [10, 11]
+                    [10, 11],
+                    [6, 7]
                   ]
                 }
               ]
@@ -134,8 +134,8 @@
     },
     {
       "id": 2,
-      "initial_direction": 1,
-      "direction_segments": [6, 10]
+      "initial_direction": 0,
+      "direction_segments": [10, 6]
     }
   ],
   "speed_traps": [
