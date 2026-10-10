@@ -25,7 +25,7 @@ layout_data = load_data_from_file("tests/data/test_layout01.json")
 
 
 def test_layout_invalid_command(fake_factory):
-    communicator = Communicator(serial_factory=fake_factory)
+    communicator = Communicator(serial_factory=fake_factory, time_to_initialize=0)
     layout = Layout(communicator)
     layout.load(layout_data)
 
@@ -50,7 +50,7 @@ def test_track_write_and_read(fake_factory):
     def listener(name, value):
         events.append((name, value))
 
-    communicator = Communicator(serial_factory=fake_factory)
+    communicator = Communicator(serial_factory=fake_factory, time_to_initialize=0)
     layout = Layout(communicator)
     layout.load(layout_data)
     layout.add_listener(listener)
@@ -108,7 +108,7 @@ def test_sensor_read(fake_factory):
     def listener(name, value):
         events.append((name, value))
 
-    communicator = Communicator(serial_factory=fake_factory)
+    communicator = Communicator(serial_factory=fake_factory, time_to_initialize=0)
     layout = Layout(communicator)
     layout.load(layout_data)
     layout.add_listener(listener)
@@ -152,7 +152,7 @@ def test_block_occupied_update(fake_factory):
     def listener(name, value):
         events.append((name, value))
 
-    communicator = Communicator(serial_factory=fake_factory)
+    communicator = Communicator(serial_factory=fake_factory, time_to_initialize=0)
     layout = Layout(communicator)
     layout.load(layout_data)
     layout.add_listener(listener)
@@ -235,7 +235,7 @@ def test_duplicate_sensor_events(fake_factory):
     def listener(name, value):
         events.append((name, value))
 
-    communicator = Communicator(serial_factory=fake_factory)
+    communicator = Communicator(serial_factory=fake_factory, time_to_initialize=0)
     layout = Layout(communicator)
     layout.load(layout_data)
     layout.add_listener(listener)
@@ -275,7 +275,7 @@ def test_speed_trap(fake_factory):
     def listener(name, value):
         events.append((name, value))
 
-    communicator = Communicator(serial_factory=fake_factory)
+    communicator = Communicator(serial_factory=fake_factory, time_to_initialize=0)
     layout = Layout(communicator)
     layout.load(layout_data)
     layout.add_listener(listener)
@@ -338,7 +338,7 @@ def test_point(fake_factory):
     def listener(name, value):
         events.append((name, value))
 
-    communicator = Communicator(serial_factory=fake_factory)
+    communicator = Communicator(serial_factory=fake_factory, time_to_initialize=0)
     layout = Layout(communicator)
     layout.load(layout_data)
     layout.add_listener(listener)

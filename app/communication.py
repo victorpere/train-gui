@@ -12,10 +12,11 @@ except Exception:
 class Communicator:
     """Handles serial communication with Arduino
     """
-    def __init__(self, serial_factory: Optional[Callable[[str], object]] = None):
+    def __init__(self, serial_factory: Optional[Callable[[str], object]] = None, time_to_initialize = 1):
         self._ser = None
         self._reading = False
-        self._listeners: List[Callable[[str, object], None]] = []
+        self._listeners: List[Callable[[str, object, float], None]] = []
+        self._time_to_initialize = time_to_initialize
 
         # Default serial factory uses pyserial if available
         if serial_factory is not None:
@@ -27,20 +28,20 @@ class Communicator:
             else:
                 self._serial_factory = lambda port: serial.Serial(port, 9600, timeout=1)
 
-    def add_listener(self, cb: Callable[[str, object], None]):
+    def add_listener(self, cb: Callable[[str, object, float], None]):
         self._listeners.append(cb)
 
-    def _notify(self, name: str, value: object):
+    def _notify(self, name: str, value: object, delay: float = 0):
         for cb in list(self._listeners):
             try:
-                cb(name, value)
+                cb(name, value, delay)
             except Exception:
                 pass
 
     def connect(self, port: str) -> Tuple[bool, str]:
         try:
             self._ser = self._serial_factory(port)
-            self._notify("status", "connected")
+            self._notify("status", "connected", self._time_to_initialize)
             self.start_reading()
             return True, ""
         except Exception as e:

@@ -27,7 +27,7 @@ layout_data = {
 }
 
 def test_scenario_runner_executes_steps():    
-    communicator = Communicator(serial_factory=factory)
+    communicator = Communicator(serial_factory=factory, time_to_initialize=0)
     layout = Layout(communicator)
     layout.load(layout_data)
     track = layout.components[DeviceType.TARGET_VOLTAGE.name][1]
@@ -59,7 +59,7 @@ def test_scenario_runner_executes_steps():
 
 
 def test_scenario_runner_waits_for_actual_voltage():
-    communicator = Communicator(serial_factory=factory)
+    communicator = Communicator(serial_factory=factory, time_to_initialize=0)
     layout = Layout(communicator)
     layout.load(layout_data)
     track = layout.components[DeviceType.TARGET_VOLTAGE.name][1]
@@ -104,7 +104,7 @@ def test_scenario_runner_waits_for_actual_voltage():
 
 
 def test_invalid_scenario():
-    communicator = Communicator(serial_factory=factory)
+    communicator = Communicator(serial_factory=factory, time_to_initialize=0)
     layout = Layout(communicator)
     layout.load(layout_data)
     communicator.connect("/dev/fake")

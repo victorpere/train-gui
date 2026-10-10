@@ -24,7 +24,7 @@ def fake_factory():
 def test_connect_success(fake_factory):
     events = []
 
-    def listener(name, value):
+    def listener(name, value, delay):
         events.append((name, value))
 
     communicator = Communicator(serial_factory=fake_factory)
@@ -49,7 +49,7 @@ def test_connect_failure():
 def test_disconnect(fake_factory):
     events = []
 
-    def listener(name, value):
+    def listener(name, value, delay):
         events.append((name, value))
 
     communicator = Communicator(serial_factory=fake_factory)
@@ -101,7 +101,7 @@ def test_send_encodes_and_writes(fake_factory):
 def test_receive_message_notifies_listener(fake_factory):
     events = []
 
-    def listener(name, value):
+    def listener(name, value, delay):
         events.append((name, value))
 
     communicator = Communicator(serial_factory=fake_factory)
@@ -125,7 +125,7 @@ def test_receive_message_notifies_listener(fake_factory):
 def test_receive_resyncs_after_corrupt_bytes(fake_factory):
     events = []
 
-    def listener(name, value):
+    def listener(name, value, delay):
         events.append((name, value))
 
     communicator = Communicator(serial_factory=fake_factory)

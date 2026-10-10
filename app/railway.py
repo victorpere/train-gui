@@ -139,9 +139,9 @@ class Layout:
         # print(f"Layout.electrified_segments: {segments}")
         return segments
 
-    def _initialize(self):
+    def _initialize(self, delay: float):
         points = self.components.get(DeviceType.POINT_DIRECTION.name)
-        sleep(1)
+        sleep(delay)
         for point in points.values():
             print(f"initializing point: {point.id}")
             print(f"set direction to {point.direction}")
@@ -169,7 +169,7 @@ class Layout:
         return ok, msg
 
     # TODO: return type
-    def _on_communication_event(self, name: str, value):
+    def _on_communication_event(self, name: str, value, delay: float):
         """Triggers on receiving an event from communicator and forwards to target component.
            Status messages are forwarded to listeners.
         """
@@ -178,7 +178,7 @@ class Layout:
             for cb in list(self._listeners):
                 cb(name, str(value))
             if value == "connected":
-                self._initialize()
+                self._initialize(delay)
         elif name == "message":
             try:
                 message_type = value.get("message_type")
