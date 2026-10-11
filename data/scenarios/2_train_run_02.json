@@ -1,0 +1,289 @@
+{
+  "name": "2 train run version 2",
+  "description": "starts with 2 trains in sidings",
+  "times": 1,
+  "steps": [
+    {
+      "action": "DEVICE_SET",
+      "device_type": "POINT_DIRECTION",
+      "device_id": 0,
+      "value": 1
+    },
+    {
+      "action": "DEVICE_SET",
+      "device_type": "POINT_DIRECTION",
+      "device_id": 1,
+      "value": 1
+    },
+    {
+      "action": "DEVICE_SET",
+      "device_type": "TARGET_VOLTAGE",
+      "device_id": 0,
+      "value": -105
+    },
+    {
+        "action": "DEVICE_WAIT",
+        "device_type": "SENSOR",
+        "device_id": 3,
+        "value": 1
+    },
+    {
+      "action": "DEVICE_SET",
+      "device_type": "POINT_DIRECTION_SKIP_CHECK",
+      "device_id": 0,
+      "value": 0
+    },
+    {
+      "action": "DEVICE_SET",
+      "device_type": "TARGET_VOLTAGE",
+      "device_id": 0,
+      "value": -125
+    },
+    {
+      "action": "DEVICE_WAIT",
+      "device_type": "SENSOR",
+      "device_id": 0,
+      "value": 1
+    },
+    {
+      "action": "DEVICE_WAIT",
+      "device_type": "SENSOR",
+      "device_id": 3,
+      "value": 1
+    },
+    {
+      "action": "DEVICE_SET",
+      "device_type": "TARGET_VOLTAGE",
+      "device_id": 0,
+      "value": -90
+    },
+    {
+      "action": "DEVICE_WAIT",
+      "device_type": "SENSOR",
+      "device_id": 0,
+      "value": 1
+    },
+    {
+      "action": "DEVICE_SET",
+      "device_type": "TARGET_VOLTAGE",
+      "device_id": 0,
+      "value": 0
+    },
+    {
+      "action": "DEVICE_WAIT",
+      "device_type": "ACTUAL_VOLTAGE",
+      "device_id": 0,
+      "value": 0
+    },
+    {
+      "action": "DEVICE_SET",
+      "device_type": "TARGET_VOLTAGE",
+      "device_id": 0,
+      "value": 125
+    },
+    {
+      "action": "DEVICE_WAIT",
+      "device_type": "SENSOR",
+      "device_id": 3,
+      "value": 1
+    },
+    {
+      "action": "DEVICE_WAIT",
+      "device_type": "SENSOR",
+      "device_id": 0,
+      "value": 1
+    },
+    {
+      "action": "DEVICE_WAIT",
+      "device_type": "SENSOR",
+      "device_id": 3,
+      "value": 1
+    },
+    {
+      "action": "DEVICE_WAIT",
+      "device_type": "SENSOR",
+      "device_id": 0,
+      "value": 1
+    },
+    {
+      "action": "DEVICE_WAIT",
+      "device_type": "SENSOR",
+      "device_id": 3,
+      "value": 1
+    },
+    {
+      "action": "DEVICE_SET",
+      "device_type": "POINT_DIRECTION_SKIP_CHECK",
+      "device_id": 0,
+      "value": 1
+    },
+    {
+      "action": "DEVICE_SET",
+      "device_type": "TARGET_VOLTAGE",
+      "device_id": 0,
+      "value": 101
+    },
+    {
+      "action": "DEVICE_WAIT",
+      "device_type": "SENSOR",
+      "device_id": 2,
+      "value": 1
+    },
+    {
+      "action": "DEVICE_SET",
+      "device_type": "TARGET_VOLTAGE",
+      "device_id": 0,
+      "value": 0
+    },
+    {
+      "action": "DEVICE_WAIT",
+      "device_type": "ACTUAL_VOLTAGE",
+      "device_id": 0,
+      "value": 0
+    },
+    {
+      "action": "DEVICE_SET",
+      "device_type": "POINT_DIRECTION",
+      "device_id": 1,
+      "value": 0
+    },
+    {
+      "action": "DEVICE_SET",
+      "device_type": "TARGET_VOLTAGE",
+      "device_id": 0,
+      "value": -95
+    },
+    {
+        "action": "DEVICE_WAIT",
+        "device_type": "SENSOR",
+        "device_id": 3,
+        "value": 1
+    },
+    {
+      "action": "DEVICE_SET",
+      "device_type": "POINT_DIRECTION_SKIP_CHECK",
+      "device_id": 0,
+      "value": 0
+    },
+    {
+      "action": "DEVICE_SET",
+      "device_type": "TARGET_VOLTAGE",
+      "device_id": 0,
+      "value": -110
+    },
+    {
+      "action": "DEVICE_WAIT",
+      "device_type": "SENSOR",
+      "device_id": 0,
+      "value": 1
+    },
+    {
+        "action": "DEVICE_WAIT",
+        "device_type": "SENSOR",
+        "device_id": 3,
+        "value": 1
+    },
+    {
+      "action": "DEVICE_WAIT",
+      "device_type": "SENSOR",
+      "device_id": 0,
+      "value": 1
+    },
+    {
+        "action": "DEVICE_WAIT",
+        "device_type": "SENSOR",
+        "device_id": 3,
+        "value": 1
+    },
+    {
+      "action": "DEVICE_SET",
+      "device_type": "TARGET_VOLTAGE",
+      "device_id": 0,
+      "value": -75
+    },
+    {
+        "action": "DEVICE_WAIT",
+        "device_type": "SENSOR",
+        "device_id": 0,
+        "value": 1
+    },
+    {
+      "action": "DEVICE_SET",
+      "device_type": "TARGET_VOLTAGE",
+      "device_id": 0,
+      "value": 0
+    },
+    {
+      "action": "DEVICE_WAIT",
+      "device_type": "ACTUAL_VOLTAGE",
+      "device_id": 0,
+      "value": 0
+    },
+    {
+      "action": "DEVICE_SET",
+      "device_type": "TARGET_VOLTAGE",
+      "device_id": 0,
+      "value": 110
+    },
+    {
+      "action": "DEVICE_WAIT",
+      "device_type": "SENSOR",
+      "device_id": 3,
+      "value": 1
+    },
+    {
+      "action": "DEVICE_WAIT",
+      "device_type": "SENSOR",
+      "device_id": 0,
+      "value": 1
+    },
+    {
+      "action": "DEVICE_WAIT",
+      "device_type": "SENSOR",
+      "device_id": 3,
+      "value": 1
+    },
+    {
+      "action": "DEVICE_WAIT",
+      "device_type": "SENSOR",
+      "device_id": 0,
+      "value": 1
+    },
+    {
+      "action": "DEVICE_WAIT",
+      "device_type": "SENSOR",
+      "device_id": 3,
+      "value": 1
+    },
+    {
+      "action": "DEVICE_SET",
+      "device_type": "POINT_DIRECTION_SKIP_CHECK",
+      "device_id": 0,
+      "value": 1
+    },
+    {
+      "action": "DEVICE_SET",
+      "device_type": "TARGET_VOLTAGE",
+      "device_id": 0,
+      "value": 85
+    },
+    {
+      "action": "DEVICE_WAIT",
+      "device_type": "SENSOR",
+      "device_id": 1,
+      "value": 1
+    },
+    {
+      "action": "DEVICE_SET",
+      "device_type": "TARGET_VOLTAGE",
+      "device_id": 0,
+      "value": 0
+    },
+    {
+      "action": "DEVICE_WAIT",
+      "device_type": "ACTUAL_VOLTAGE",
+      "device_id": 0,
+      "value": 0
+    }
+  ]
+}
