@@ -20,7 +20,7 @@ class ScenarioStep(BaseModel):
 
     @property
     def name(self) -> str:
-        return f"{self.action}:{self.device_type or ""}:{self.device_id or ""}:{self.value}"
+        return f"{self.action}:{self.device_type or ""}:{"" if self.device_id is None else self.device_id}:{self.value}"
 
 
 class Scenario(BaseModel):

@@ -125,3 +125,32 @@ def test_invalid_scenario():
     ok, _ = runner.load_scenario(scenario)
 
     assert not ok
+
+
+def test_step_name():
+    communicator = Communicator(serial_factory=factory, time_to_initialize=0)
+    layout = Layout(communicator)
+    layout.load(layout_data)
+    communicator.connect("/dev/fake")
+
+    scenario = {
+            "name": "step-name",
+            "description": "scenario to check step name",
+            "times": 1,
+            "steps": [
+                {
+                    "action": "DEVICE_SET",
+                    "device_type": "TARGET_VOLTAGE",
+                    "device_id": 0,
+                    "value": 45
+                }
+            ]
+        }
+
+    runner = ScenarioRunner(layout)
+    ok, _ = runner.load_scenario(scenario)
+
+    assert ok
+
+    step1 = runner.scenario.steps[0]
+    assert step1.name == "DEVICE_SET:TARGET_VOLTAGE:0:45"
