@@ -18,6 +18,7 @@ class DeviceType(Enum):
     POINT_DIRECTION = 4
     SIGNAL = 5
     SPEED = 10
+    POINT_DIRECTION_SKIP_CHECK = 12
 
 
 class PointDirection(Enum):
@@ -100,6 +101,7 @@ class Layout:
             for point_data in points:
                 point = Point(point_data, layout=self, cb=self._on_component_event)
                 self.components[DeviceType.POINT_DIRECTION.name][point.id] = point
+                self.components[DeviceType.POINT_DIRECTION_SKIP_CHECK.name][point.id] = point
 
             return True, ""
 
@@ -200,8 +202,10 @@ class Layout:
            Notifies listeners.
         """
         # print(f"_on_component_event message received: {message}")
-        if message.device_type == DeviceType.TARGET_VOLTAGE and message.message_type == MessageType.SET or \
-           message.device_type == DeviceType.POINT_DIRECTION and message.message_type == MessageType.SET:
+        if message.message_type == MessageType.SET and \
+            (message.device_type == DeviceType.TARGET_VOLTAGE or \
+             message.device_type == DeviceType.POINT_DIRECTION or \
+             message.device_type == DeviceType.POINT_DIRECTION_SKIP_CHECK):
             ok, msg = self._send_message(message)
             if not ok:
                 return False, msg
@@ -437,9 +441,10 @@ class Point:
         return self._direction_segments
 
     def process_message(self, message: Message) -> Tuple[bool, str]:
-        if message.device_type == DeviceType.POINT_DIRECTION and message.device_id == self.id:
+        if (message.device_type == DeviceType.POINT_DIRECTION or message.device_type == DeviceType.POINT_DIRECTION_SKIP_CHECK) \
+            and message.device_id == self.id:
             if message.message_type == MessageType.SET:
-                if self._direction != message.value:
+                if message.device_type != DeviceType.POINT_DIRECTION_SKIP_CHECK and self._direction != message.value:
                     electrified_segments = self._layout.electrified_segments()
                     for track_id in electrified_segments:
                         if self._direction_segments[self._direction] in electrified_segments[track_id] or \

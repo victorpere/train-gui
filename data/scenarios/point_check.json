@@ -1,0 +1,47 @@
+{
+  "name": "point skip check",
+  "description": "point skip check",
+  "times": 1,
+  "steps": [
+    {
+      "action": "DEVICE_SET",
+      "device_type": "POINT_DIRECTION",
+      "device_id": 0,
+      "value": 1
+    },
+    {
+      "action": "TIME_WAIT",
+      "value": 2000
+    },
+    {
+      "action": "DEVICE_SET",
+      "device_type": "POINT_DIRECTION",
+      "device_id": 0,
+      "value": 0
+    },
+    {
+      "action": "TIME_WAIT",
+      "value": 2000
+    },
+    {
+      "action": "DEVICE_SET",
+      "device_type": "POINT_DIRECTION_SKIP_CHECK",
+      "device_id": 0,
+      "value": 1
+    },
+    {
+      "action": "TIME_WAIT",
+      "value": 2000
+    },
+    {
+      "action": "DEVICE_SET",
+      "device_type": "POINT_DIRECTION_SKIP_CHECK",
+      "device_id": 0,
+      "value": 0
+    },
+    {
+      "action": "TIME_WAIT",
+      "value": 2000
+    }
+  ]
+}

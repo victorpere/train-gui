@@ -546,7 +546,8 @@ class TrainController:
                         self.canvas.itemconfig(
                             sensor_indicator, fill=self.diagram_config.symbol_fill_color)
                     self.root.after(100, sensor_indicator_off)
-        elif message.device_type == DeviceType.POINT_DIRECTION:
+        elif message.device_type == DeviceType.POINT_DIRECTION or \
+             message.device_type == DeviceType.POINT_DIRECTION_SKIP_CHECK:
             try:
                 point = self.layout.components[DeviceType.POINT_DIRECTION.name][message.device_id]
                 self._update_point_diagram(point)

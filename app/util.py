@@ -38,7 +38,7 @@ def encode_message(message: dict) -> bytes:
     value: int = message.get("value", 0)
 
     # Byte 0: pack bits
-    byte0 = (message_type << 7) | (device_type << 4) | (device_id & 0x0F)
+    byte0 = (message_type << 7) | ((device_type & 0x07) << 4) | (device_id & 0x0F)
     
     # Byte 1: ensure value is in signed byte range
     value = max(-128, min(127, value))
