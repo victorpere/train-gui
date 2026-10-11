@@ -179,7 +179,15 @@
       "track_id": 0,
       "sensor_1_id": 0,
       "sensor_2_id": 0,
-      "distance": 2680.5
+      "distance": 2836.02,
+      "distance_old": 2680.5
+    },
+    {
+      "id": 1,
+      "track_id": 0,
+      "sensor_1_id": 0,
+      "sensor_2_id": 3,
+      "distance": 860.01
     }
   ]
 }
