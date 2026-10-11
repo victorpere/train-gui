@@ -361,32 +361,18 @@ class Sensor:
     def process_message(self, message: Message) -> Tuple[bool, str]:
         if message.message_type == MessageType.SET and message.device_type == DeviceType.SENSOR:
             if message.value >= self.ON_THRESHOLD:
-                ok, msg = self._detect_on()
-                if ok:
-                    return self._cb(message)
-                else:
-                    return False, msg
+                if self._on:
+                    return False, f"Sensonf {self.id} is already on"
+                self._on = True
+                return self._cb(message)
             else:
-                ok, msg = self._detect_off()
-                if ok:
-                    return self._cb(message)
-                else:
-                    return False, msg
+                if not self._on:
+                    return False, f"Sensor {self.id} is lready off"
+                self._on = False
+                return self._cb(message)
         elif message.message_type == MessageType.QUERY and message.device_type == DeviceType.SENSOR:
             return True, int(self.on)
-        return False, "Unknown message"
-
-    def _detect_on(self) -> Tuple[bool, str]:
-        if self._on:
-            return False, "Already on"
-        self._on = True
-        return True, ""
-
-    def _detect_off(self) -> Tuple[bool, str]:
-        if not self._on:
-            return False, "Already off"
-        self._on = False
-        return True, ""
+        return False, f"Sensor {self.id}: unknown message"
 
 
 class SpeedTrap:
