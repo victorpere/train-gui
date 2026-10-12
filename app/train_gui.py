@@ -147,6 +147,7 @@ class TrainController:
         self.scenario_name = tk.StringVar()
         self.scenario_status = tk.StringVar(value="")
         self.scenario_step = tk.StringVar(value="")
+        self.scenario_times = tk.IntVar(value=1)
 
         self.controls: dict[int, TrackControl] = {}
         self.speed_displays: dict[int, SpeedDisplay] = {}
@@ -210,6 +211,15 @@ class TrainController:
         self.stop_scenario_button = ttk.Button(
             scenario_frame, text="Stop", command=self.stop_scenario, state="disabled")
         self.stop_scenario_button.grid(row=0, column=3, padx=5)
+
+        ttk.Label(scenario_frame, text="Times:").grid(
+            row=0, column=4, sticky="e", padx=(15, 5))
+        ttk.Button(scenario_frame, text="\u25bc", width=2,
+                   command=self._decrement_scenario_times).grid(row=0, column=5)
+        ttk.Label(scenario_frame, textvariable=self.scenario_times, width=3,
+                  anchor="center").grid(row=0, column=6)
+        ttk.Button(scenario_frame, text="\u25b2", width=2,
+                   command=self._increment_scenario_times).grid(row=0, column=7)
 
         ttk.Label(scenario_frame, text="Status:").grid(
             row=1, column=0, sticky="w", padx=5)
@@ -420,10 +430,24 @@ class TrainController:
         ok, msg = self.scenario_runner.load_scenario(data)
         if ok:
             self.scenario_step.set("")
+            self.scenario_times.set(self.scenario_runner.scenario.times)
             self.set_message(
                 "info", f"Scenario loaded: {data.get('name', self.scenario_runner.scenario.name)}")
         else:
             self.set_message("error", f"Scenario failed to load: {msg}")
+
+    def _increment_scenario_times(self):
+        self.scenario_times.set(self.scenario_times.get() + 1)
+        self._apply_scenario_times()
+
+    def _decrement_scenario_times(self):
+        if self.scenario_times.get() > 1:
+            self.scenario_times.set(self.scenario_times.get() - 1)
+            self._apply_scenario_times()
+
+    def _apply_scenario_times(self):
+        if self.scenario_runner and self.scenario_runner.scenario:
+            self.scenario_runner.scenario.times = self.scenario_times.get()
 
     def run_scenario(self):
         if not self.scenario_runner:
