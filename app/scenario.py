@@ -1,5 +1,5 @@
 import time
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 from threading import Thread
 from typing import Callable, List, Optional, Tuple
 from enum import Enum
@@ -17,6 +17,20 @@ class ScenarioStep(BaseModel):
     device_type: Optional[str] = None
     device_id: Optional[int] = None
     value: int
+
+    @model_validator(mode="before")
+    @classmethod
+    def _parse_compact_form(cls, data):
+        """Allow steps given as "ACTION:DEVICE_TYPE:DEVICE_ID:VALUE" strings (used by YAML scenarios)."""
+        if isinstance(data, str):
+            action, device_type, device_id, value = data.split(":")
+            return {
+                "action": action,
+                "device_type": device_type or None,
+                "device_id": int(device_id) if device_id else None,
+                "value": int(value),
+            }
+        return data
 
     @property
     def name(self) -> str:

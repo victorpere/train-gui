@@ -1,0 +1,9 @@
+name: test 1
+description: new format
+times: 1
+steps:
+  - DEVICE_SET:TARGET_VOLTAGE:1:100
+  - DEVICE_WAIT:ACTUAL_VOLTAGE:1:100
+  - TIME_WAIT:::15000
+  - DEVICE_SET:TARGET_VOLTAGE:1:0
+  - DEVICE_WAIT:ACTUAL_VOLTAGE:1:0

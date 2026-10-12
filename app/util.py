@@ -1,16 +1,34 @@
 import json
+import os
+import yaml
 from typing import Optional
 
 def load_data_from_file(filename):
-    """Load data from a JSON file."""
+    """Load data from a JSON or YAML file, based on its extension."""
+    ext = os.path.splitext(filename)[1].lower()
     try:
         with open(filename, 'r') as f:
-            data = json.load(f)
+            if ext in ('.yaml', '.yml'):
+                data = yaml.safe_load(f)
+            else:
+                data = json.load(f)
         return data
     except FileNotFoundError:
         raise FileNotFoundError(f"File {filename} not found.")
     except Exception as e:
         raise Exception(f"Error loading data from {filename}: {e}")
+
+def save_data_to_file(data, filename):
+    """Save data to a JSON or YAML file, based on its extension."""
+    ext = os.path.splitext(filename)[1].lower()
+    try:
+        with open(filename, 'w') as f:
+            if ext in ('.yaml', '.yml'):
+                yaml.safe_dump(data, f, sort_keys=False)
+            else:
+                json.dump(data, f, indent=4)
+    except Exception as e:
+        raise Exception(f"Error saving data to {filename}: {e}")
 
 def crc8(data: bytes) -> int:
     """Calculate CRC8 checksum using polynomial 0x07."""

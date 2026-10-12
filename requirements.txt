@@ -1,2 +1,4 @@
 pytest
 pyserial
+pydantic
+pyyaml

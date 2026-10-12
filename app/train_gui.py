@@ -405,7 +405,7 @@ class TrainController:
 
     def select_file(self):
         filepath = fd.askopenfilename(title='Open a file', initialdir=os.path.join(
-            "data", "scenarios"), filetypes=[('JSON files', '*.json')])
+            "data", "scenarios"), filetypes=[('Scenario files', '*.json *.yaml *.yml'), ('JSON files', '*.json'), ('YAML files', '*.yaml *.yml')])
         if len(filepath) > 0:
             self.load_scenario_file(filepath)
 
