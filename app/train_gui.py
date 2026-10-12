@@ -534,6 +534,8 @@ class TrainController:
                 txt = str(value).capitalize()
                 fg = "green" if str(value).lower() == "connected" else "red"
                 self.status_label.config(text=txt, foreground=fg)
+                if str(value).lower() == "disconnected":
+                    self.connect_button.config(state="normal")
 
         self.root.after(0, apply_event)
 
