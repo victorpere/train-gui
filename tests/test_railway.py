@@ -145,6 +145,7 @@ def test_sensor_read(fake_factory):
 
     assert not sensor.on
 
+
 def test_duplicate_sensor_events(fake_factory):
     events = []
 
@@ -302,3 +303,16 @@ def test_point(fake_factory):
     ok, msg = layout.command(switch_point_message)
     assert not ok
     assert point.direction == 1
+
+    # try to switch with skip check
+    switch_point_skip_check_message = Message(
+        message_type=MessageType.SET,
+        device_type=DeviceType.POINT_DIRECTION_SKIP_CHECK,
+        device_id=1,
+        value=0
+    )
+
+    # point should have switched
+    ok, msg = layout.command(switch_point_skip_check_message)
+    assert ok
+    assert point.direction == 0
