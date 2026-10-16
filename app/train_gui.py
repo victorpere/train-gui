@@ -144,10 +144,13 @@ class TrainController:
 
         self.scenario_runner = ScenarioRunner(layout=self.layout)
         self.scenario_runner.add_listener(self._on_scenario_event)
+        self.scenario_file = tk.StringVar()
         self.scenario_name = tk.StringVar()
+        self.scenario_description = tk.StringVar()
         self.scenario_status = tk.StringVar(value="")
-        self.scenario_step = tk.StringVar(value="")
+        self.scenario_iteration = tk.StringVar()
         self.scenario_times = tk.IntVar(value=1)
+        self._highlighted_step_iid = None
 
         self.controls: dict[int, TrackControl] = {}
         self.speed_displays: dict[int, SpeedDisplay] = {}
@@ -164,8 +167,7 @@ class TrainController:
         self.right_frame.pack(side="right", fill="y")
 
         # Serial connection frame
-        conn_frame = ttk.LabelFrame(
-            self.left_frame, text="Serial Connection", padding=10)
+        conn_frame = ttk.LabelFrame(self.left_frame, padding=10)
         conn_frame.pack(fill="x", padx=10, pady=5)
 
         ttk.Label(conn_frame, text="Port:").grid(row=0, column=0)
@@ -178,6 +180,11 @@ class TrainController:
         self.status_label = ttk.Label(
             conn_frame, text="Disconnected", foreground="red")
         self.status_label.grid(row=0, column=3)
+
+        self.scenario_panel_visible = False
+        self.scenario_toggle_button = ttk.Button(
+            conn_frame, text="Show Scenario \u00bb", command=self._toggle_scenario_panel)
+        self.scenario_toggle_button.grid(row=0, column=4, padx=(15, 5))
 
         self._build_diagram()
 
@@ -197,43 +204,68 @@ class TrainController:
 
         self._update_electrified_segments()
 
-        scenario_frame = ttk.LabelFrame(
-            self.left_frame, text="Scenario", padding=10)
-        scenario_frame.pack(fill="x", padx=10, pady=5)
+        self.scenario_panel = ttk.LabelFrame(
+            self.root, text="Scenario", padding=10)
 
         self.scenario_open_button = ttk.Button(
-            scenario_frame, text='Load from file', command=self.select_file)
+            self.scenario_panel, text='Load from file', command=self.select_file)
         self.scenario_open_button.grid(row=0, column=0, padx=5)
 
         self.run_scenario_button = ttk.Button(
-            scenario_frame, text="Run", command=self.run_scenario, state="disabled")
+            self.scenario_panel, text="Run", command=self.run_scenario, state="disabled")
         self.run_scenario_button.grid(row=0, column=2, padx=5)
         self.stop_scenario_button = ttk.Button(
-            scenario_frame, text="Stop", command=self.stop_scenario, state="disabled")
+            self.scenario_panel, text="Stop", command=self.stop_scenario, state="disabled")
         self.stop_scenario_button.grid(row=0, column=3, padx=5)
 
-        ttk.Label(scenario_frame, text="Times:").grid(
+        ttk.Label(self.scenario_panel, text="Times:").grid(
             row=0, column=4, sticky="e", padx=(15, 5))
-        ttk.Button(scenario_frame, text="\u25bc", width=2,
+        ttk.Button(self.scenario_panel, text="\u25bc", width=2,
                    command=self._decrement_scenario_times).grid(row=0, column=5)
-        ttk.Label(scenario_frame, textvariable=self.scenario_times, width=3,
+        ttk.Label(self.scenario_panel, textvariable=self.scenario_times, width=3,
                   anchor="center").grid(row=0, column=6)
-        ttk.Button(scenario_frame, text="\u25b2", width=2,
+        ttk.Button(self.scenario_panel, text="\u25b2", width=2,
                    command=self._increment_scenario_times).grid(row=0, column=7)
 
-        ttk.Label(scenario_frame, text="Status:").grid(
-            row=1, column=0, sticky="w", padx=5)
-        self.scenario_status_label = ttk.Label(
-            scenario_frame, textvariable=self.scenario_status)
-        self.scenario_status_label.grid(
-            row=1, column=1, columnspan=3, sticky="w", padx=5)
+        info_rows = [
+            ("File:", self.scenario_file),
+            ("Name:", self.scenario_name),
+            ("Description:", self.scenario_description),
+            ("Status:", self.scenario_status),
+            ("Iteration:", self.scenario_iteration),
+        ]
+        for row, (caption, variable) in enumerate(info_rows, start=1):
+            ttk.Label(self.scenario_panel, text=caption).grid(
+                row=row, column=0, sticky="nw", padx=5, pady=(8, 0) if row == 1 else 0)
+            ttk.Label(self.scenario_panel, textvariable=variable, wraplength=380,
+                      justify="left").grid(
+                row=row, column=1, columnspan=7, sticky="w", padx=5,
+                pady=(8, 0) if row == 1 else 0)
 
-        ttk.Label(scenario_frame, text="Current step:").grid(
-            row=2, column=0, sticky="w", padx=5)
-        self.scenario_step_label = ttk.Label(
-            scenario_frame, textvariable=self.scenario_step)
-        self.scenario_step_label.grid(
-            row=2, column=1, columnspan=3, sticky="w", padx=5)
+        steps_frame = ttk.Frame(self.scenario_panel)
+        steps_frame.grid(row=len(info_rows) + 1, column=0,
+                         columnspan=8, sticky="nsew", pady=(10, 0))
+        self.scenario_panel.rowconfigure(len(info_rows) + 1, weight=1)
+
+        columns = ("number", "action", "device_type", "device_id", "value")
+        self.steps_table = ttk.Treeview(
+            steps_frame, columns=columns, show="headings", height=15, selectmode="none")
+        for column, heading, width in (
+                ("number", "#", 40),
+                ("action", "Action", 110),
+                ("device_type", "Device type", 210),
+                ("device_id", "Device ID", 75),
+                ("value", "Value", 60)):
+            self.steps_table.heading(column, text=heading)
+            self.steps_table.column(
+                column, width=width, anchor="w" if column in ("action", "device_type") else "e")
+        self.steps_table.tag_configure(
+            "current", background="#ffe08a", foreground="black")
+        steps_scrollbar = ttk.Scrollbar(
+            steps_frame, orient="vertical", command=self.steps_table.yview)
+        self.steps_table.configure(yscrollcommand=steps_scrollbar.set)
+        self.steps_table.pack(side="left", fill="both", expand=True)
+        steps_scrollbar.pack(side="right", fill="y")
 
         message_frame = ttk.LabelFrame(
             self.left_frame, text="Messages", padding=10)
@@ -429,8 +461,13 @@ class TrainController:
 
         ok, msg = self.scenario_runner.load_scenario(data)
         if ok:
-            self.scenario_step.set("")
-            self.scenario_times.set(self.scenario_runner.scenario.times)
+            scenario = self.scenario_runner.scenario
+            self.scenario_file.set(os.path.basename(scenario_path))
+            self.scenario_name.set(scenario.name)
+            self.scenario_description.set(scenario.description)
+            self.scenario_iteration.set("")
+            self._populate_steps_table(scenario.steps)
+            self.scenario_times.set(scenario.times)
             self.set_message(
                 "info", f"Scenario loaded: {data.get('name', self.scenario_runner.scenario.name)}")
         else:
@@ -448,6 +485,42 @@ class TrainController:
     def _apply_scenario_times(self):
         if self.scenario_runner and self.scenario_runner.scenario:
             self.scenario_runner.scenario.times = self.scenario_times.get()
+
+    def _populate_steps_table(self, steps):
+        self.steps_table.delete(*self.steps_table.get_children())
+        self._highlighted_step_iid = None
+        for index, step in enumerate(steps):
+            self.steps_table.insert("", "end", iid=str(index), values=(
+                index + 1,
+                step.action,
+                step.device_type or "",
+                "" if step.device_id is None else step.device_id,
+                step.value))
+
+    def _highlight_step(self, step):
+        if self._highlighted_step_iid is not None:
+            self.steps_table.item(self._highlighted_step_iid, tags=())
+            self._highlighted_step_iid = None
+        if step is None:
+            return
+        # Steps can be textually identical, so match on object identity.
+        for index, candidate in enumerate(self.scenario_runner.scenario.steps):
+            if candidate is step:
+                iid = str(index)
+                self.steps_table.item(iid, tags=("current",))
+                self.steps_table.see(iid)
+                self._highlighted_step_iid = iid
+                break
+
+    def _toggle_scenario_panel(self):
+        if self.scenario_panel_visible:
+            self.scenario_panel.pack_forget()
+            self.scenario_toggle_button.config(text="Show Scenario \u00bb")
+        else:
+            self.scenario_panel.pack(
+                side="right", fill="y", padx=10, pady=5)
+            self.scenario_toggle_button.config(text="Hide Scenario \u00ab")
+        self.scenario_panel_visible = not self.scenario_panel_visible
 
     def run_scenario(self):
         if not self.scenario_runner:
@@ -497,7 +570,8 @@ class TrainController:
             if name == "scenario_state":
                 if value == None:
                     self.scenario_status.set("")
-                    self.scenario_step.set("")
+                    self.scenario_iteration.set("")
+                    self._highlight_step(None)
                     self.run_scenario_button.config(state="disabled")
                     self.stop_scenario_button.config(state="disabled")
                     return
@@ -512,12 +586,16 @@ class TrainController:
                     self.run_scenario_button.config(state="normal")
                     self.stop_scenario_button.config(state="disabled")
                     self.set_message("error", scenario_state.message)
-                self.scenario_status.set(
-                    f"{scenario_state.status.value} {self.scenario_runner.scenario.name}")
-                if scenario_state.step is not None:
-                    self.scenario_step.set(str(scenario_state.step.name))
-                else:
-                    self.scenario_step.set("")
+                status_text = scenario_state.status.value
+                if scenario_state.message:
+                    status_text += f" - {scenario_state.message}"
+                self.scenario_status.set(status_text)
+                if scenario_state.iteration is not None:
+                    self.scenario_iteration.set(
+                        f"{scenario_state.iteration} of {self.scenario_runner.scenario.times}")
+                elif scenario_state.status == ScenarioStatus.READY and not scenario_state.message:
+                    self.scenario_iteration.set("")
+                self._highlight_step(scenario_state.step)
 
         self.root.after(0, apply_event)
 
