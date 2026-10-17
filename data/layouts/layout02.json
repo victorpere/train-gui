@@ -94,12 +94,7 @@
   "blocks": [
     {
       "id": 0,
-      "occupied": true,
-      "track_id": 1,
-      "sensors": [{ "sensor_id": 0, "direction": -1 }],
-      "diagram": {
-        "segments": [12]
-      }
+      "occupied": true
     }
   ],
   "sensors": [
@@ -135,8 +130,7 @@
       "track_id": 0,
       "sensor_1_id": 0,
       "sensor_2_id": 0,
-      "distance": 2836.02,
-      "distance_old": 2680.5
+      "distance": 2836.02
     },
     {
       "id": 1,

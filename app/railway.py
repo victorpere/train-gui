@@ -44,6 +44,89 @@ class Callback(Protocol):
     def __call__(self, name: str, value: object): ...
 
 
+def validate_layout(layout_data: dict) -> list[str]:
+    """Returns a list of problems found in a layout definition (empty if valid)"""
+    errors: list[str] = []
+
+    def collect_ids(label: str, items: list) -> set:
+        ids = set()
+        for item in items:
+            item_id = item.get("id")
+            if not isinstance(item_id, int):
+                errors.append(f"{label}: missing or non-integer id in {item}")
+            elif item_id in ids:
+                errors.append(f"{label}: duplicate id {item_id}")
+            else:
+                ids.add(item_id)
+        return ids
+
+    diagram_segments = (layout_data.get("diagram") or {}).get("segments")
+    # None means no diagram, so segment references cannot be checked
+    segment_ids = None if diagram_segments is None else collect_ids("diagram.segments", diagram_segments)
+    track_ids = collect_ids("tracks", layout_data.get("tracks", []))
+    collect_ids("blocks", layout_data.get("blocks", []))
+    sensor_ids = collect_ids("sensors", layout_data.get("sensors", []))
+    collect_ids("speed_traps", layout_data.get("speed_traps", []))
+    points = layout_data.get("points", [])
+    point_ids = collect_ids("points", points)
+
+    def check_segment(segment_id: int, where: str):
+        if segment_ids is not None and segment_id not in segment_ids:
+            errors.append(f"{where}: unknown segment {segment_id}")
+
+    point_routes: dict[int, list] = {}
+    for point in points:
+        where = f"point {point.get('id')}"
+        routes = point.get("direction_segments")
+        if not isinstance(routes, list) or len(routes) != 2:
+            errors.append(f"{where}: direction_segments must list exactly 2 segments")
+        else:
+            point_routes[point.get("id")] = routes
+            for segment_id in routes:
+                check_segment(segment_id, where)
+        if point.get("initial_direction") not in (0, 1):
+            errors.append(f"{where}: initial_direction must be 0 or 1")
+
+    def check_path(path: list, where: str):
+        for item in path:
+            if isinstance(item, int):
+                check_segment(item, where)
+                continue
+            point_id = item.get("point_id")
+            if point_id not in point_ids:
+                errors.append(f"{where}: unknown point {point_id}")
+                continue
+            branches = item.get("direction_segments")
+            if not isinstance(branches, list) or len(branches) != 2:
+                errors.append(f"{where}: point {point_id} must have exactly 2 direction_segments")
+                continue
+            for branch, route in zip(branches, point_routes.get(point_id, [])):
+                if branch and isinstance(branch[0], int) and branch[0] != route:
+                    errors.append(f"{where}: point {point_id} branch starts with segment {branch[0]}, "
+                                  f"but the point defines {route}")
+                check_path(branch, where)
+
+    for track in layout_data.get("tracks", []):
+        where = f"track {track.get('id')}"
+        if track.get("feeder_segment_id") is not None:
+            check_segment(track["feeder_segment_id"], where)
+        for path in track.get("segments") or []:
+            check_path(path, where)
+
+    for trap in layout_data.get("speed_traps", []):
+        where = f"speed trap {trap.get('id')}"
+        if trap.get("track_id") not in track_ids:
+            errors.append(f"{where}: unknown track {trap.get('track_id')}")
+        for key in ("sensor_1_id", "sensor_2_id"):
+            if trap.get(key) not in sensor_ids:
+                errors.append(f"{where}: unknown sensor {trap.get(key)} in {key}")
+        distance = trap.get("distance")
+        if not isinstance(distance, (int, float)) or distance <= 0:
+            errors.append(f"{where}: distance must be a positive number")
+
+    return errors
+
+
 class Layout:
     """Manages layout components such as track and blocks, and handles communication
     """
@@ -61,6 +144,12 @@ class Layout:
     def load(self, layout_data: dict) -> Tuple[bool, str]:
         """Creates layout and components from a dictionary definition"""
         try:
+            errors = validate_layout(layout_data)
+            if errors:
+                msg = "; ".join(errors)
+                print(f"Invalid layout: {msg}")
+                return False, msg
+
             for cb in self._speed_trap_listeners:
                 self._listeners.remove(cb)
             self._speed_trap_listeners.clear()

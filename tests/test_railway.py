@@ -1,7 +1,8 @@
 from fake_serial import FakeSerial
 from util import encode_message, load_data_from_file
-from railway import Layout, DeviceType, Message, MessageType, Sensor, Block, Track, SpeedTrap, Point
+from railway import Layout, DeviceType, Message, MessageType, Sensor, Block, Track, SpeedTrap, Point, validate_layout
 from communication import Communicator
+import copy
 import pytest
 import os
 import sys
@@ -316,3 +317,30 @@ def test_point(fake_factory):
     ok, msg = layout.command(switch_point_skip_check_message)
     assert ok
     assert point.direction == 0
+
+
+def test_validate_layout_accepts_bundled_layouts():
+    for path in ("tests/data/test_layout01.json", "data/layouts/layout01.json", "data/layouts/layout02.json"):
+        assert validate_layout(load_data_from_file(path)) == [], path
+
+
+def test_validate_layout_reports_problems(fake_factory):
+    bad = copy.deepcopy(layout_data)
+    bad["sensors"].append({"id": 1})
+    bad["speed_traps"][0]["sensor_2_id"] = 99
+    bad["speed_traps"][0]["track_id"] = 42
+    bad["points"][0]["direction_segments"] = [2, 77]
+    bad["tracks"][0]["feeder_segment_id"] = 55
+
+    errors = validate_layout(bad)
+    assert "sensors: duplicate id 1" in errors
+    assert any("unknown sensor 99" in e for e in errors)
+    assert any("unknown track 42" in e for e in errors)
+    assert any("unknown segment 77" in e for e in errors)
+    assert any("unknown segment 55" in e for e in errors)
+
+    communicator = Communicator(serial_factory=fake_factory, time_to_initialize=0)
+    layout = Layout(communicator)
+    ok, msg = layout.load(bad)
+    assert not ok
+    assert "duplicate id 1" in msg
