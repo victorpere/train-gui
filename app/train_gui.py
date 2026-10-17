@@ -206,7 +206,7 @@ class TrainController:
 
         self.test_mode_var = tk.BooleanVar(value=self.layout.test_mode)
         ttk.Checkbutton(conn_frame, text="Test Mode", variable=self.test_mode_var,
-                        command=self._toggle_test_mode).grid(row=1, column=0, columnspan=2, sticky="w", pady=(5, 0))
+                        command=self._toggle_test_mode).grid(row=0, column=4, columnspan=2, sticky="w", pady=(5, 0))
 
         layout_file_frame = ttk.LabelFrame(self.left_frame, padding=10)
         layout_file_frame.pack(fill="x", padx=10, pady=5)
