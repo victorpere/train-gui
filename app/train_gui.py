@@ -161,7 +161,7 @@ class TrainController:
         self.build_ui()
 
     def build_ui(self):
-        self.left_frame = ttk.LabelFrame(self.root)
+        self.left_frame = ttk.LabelFrame(self.root, text="Layout")
         self.right_frame = ttk.LabelFrame(self.root)
         self.left_frame.pack(side="left", fill="y")
         self.right_frame.pack(side="right", fill="y")
@@ -518,7 +518,7 @@ class TrainController:
             self.scenario_toggle_button.config(text="Show Scenario \u00bb")
         else:
             self.scenario_panel.pack(
-                side="right", fill="y", padx=10, pady=5)
+                side="right", fill="y")
             self.scenario_toggle_button.config(text="Hide Scenario \u00ab")
         self.scenario_panel_visible = not self.scenario_panel_visible
 
