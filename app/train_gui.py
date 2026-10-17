@@ -450,9 +450,8 @@ class TrainController:
                         s["start_point"][0], s["start_point"][1], s["end_point"][0], s["end_point"][1], width=self.diagram_config.line_width)
                     self.segments[s["id"]] = "straight", segment
                 elif s["shape"] == "curve":
-                    p = diagram_helper.curve_to_tkinter_arc(s)
-                    segment = self.canvas.create_arc(
-                        p["x1"], p["y1"], p["x2"], p["y2"], start=p["start"], extent=p["extent"], style=tk.ARC, width=self.diagram_config.line_width)
+                    segment = self.canvas.create_line(
+                        *diagram_helper.curve_to_line_points(s), smooth=True, splinesteps=48, width=self.diagram_config.line_width)
                     self.segments[s["id"]] = "curve", segment
                 # self.canvas.create_text(s["start_point"][0], s["start_point"][1], text=str(s["id"]), fill="red")
                 if s.get("feeder") == True:
@@ -477,10 +476,9 @@ class TrainController:
                         s["start_point"][0], s["start_point"][1], s["end_point"][0], s["end_point"][1],
                         width=width, fill=color, tags="block"))
                 elif s["shape"] == "curve":
-                    p = diagram_helper.curve_to_tkinter_arc(s)
-                    items.append(self.canvas.create_arc(
-                        p["x1"], p["y1"], p["x2"], p["y2"], start=p["start"], extent=p["extent"],
-                        style=tk.ARC, width=width, outline=color, tags="block"))
+                    items.append(self.canvas.create_line(
+                        *diagram_helper.curve_to_line_points(s), smooth=True,
+                        width=width, fill=color, tags="block"))
             self.block_items[block.id] = items
         self.canvas.tag_lower("block")
 
@@ -490,10 +488,7 @@ class TrainController:
     def _update_block_diagram(self, block_id: int):
         block = self.layout.components[DeviceType.BLOCK.name][block_id]
         for item in self.block_items.get(block_id, []):
-            if self.canvas.type(item) == "arc":
-                self.canvas.itemconfig(item, outline=self._block_color(block.occupied))
-            else:
-                self.canvas.itemconfig(item, fill=self._block_color(block.occupied))
+            self.canvas.itemconfig(item, fill=self._block_color(block.occupied))
 
     def _build_point_diagram(self, point: Point):
         try:
@@ -555,21 +550,12 @@ class TrainController:
         try:
             electrified_segments = self.layout.electrified_segments()
             for segment in self.segments.values():
-                if segment[0] == "straight":
-                    self.canvas.itemconfig(
-                        segment[1], fill=self.diagram_config.line_color)
-                elif segment[0] == "curve":
-                    self.canvas.itemconfig(
-                        segment[1], outline=self.diagram_config.line_color)
+                self.canvas.itemconfig(
+                    segment[1], fill=self.diagram_config.line_color)
             for track_segment_ids in electrified_segments.values():
                 for segment_id in track_segment_ids:
-                    segment = self.segments[segment_id]
-                    if segment[0] == "straight":
-                        self.canvas.itemconfig(
-                            segment[1], fill=self.diagram_config.electrified_color)
-                    elif segment[0] == "curve":
-                        self.canvas.itemconfig(
-                            segment[1], outline=self.diagram_config.electrified_color)
+                    self.canvas.itemconfig(
+                        self.segments[segment_id][1], fill=self.diagram_config.electrified_color)
         except Exception as exc:
             print(f"_update_electrified_segments exception: {str(exc)}")
 

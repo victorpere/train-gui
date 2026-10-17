@@ -41,6 +41,19 @@ def curve_to_tkinter_arc(arc):
     }
 
 
+def curve_to_line_points(arc, step_degrees=15):
+    """Flat x,y list of points along a curve, for canvas.create_line(..., smooth=True)."""
+    p = curve_to_tkinter_arc(arc)
+    cx, cy = (p["x1"] + p["x2"]) / 2, (p["y1"] + p["y2"]) / 2
+    rx, ry = (p["x2"] - p["x1"]) / 2, (p["y2"] - p["y1"]) / 2
+    count = max(3, math.ceil(abs(p["extent"]) / step_degrees) + 1)
+    points = []
+    for i in range(count):
+        angle = math.radians(p["start"] + p["extent"] * i / (count - 1))
+        points += [cx + rx * math.cos(angle), cy - ry * math.sin(angle)]
+    return points
+
+
 def mid_point(segment):
     x = (segment["start_point"][0] + segment["end_point"][0]) / 2
     y = (segment["start_point"][1] + segment["end_point"][1]) / 2
