@@ -533,6 +533,7 @@ class TrainController:
                 else:
                     self.canvas.itemconfig(
                         self.segments[segment_id][1], width=self.diagram_config.line_width)
+            self.canvas.tag_raise("sensor")
         except Exception as exc:
             print(f"Failed to update point diagram: {str(exc)}")
 
@@ -542,8 +543,10 @@ class TrainController:
             return
         try:
             sensor_indicator_id = self.canvas.create_oval(
-                diagram_helper.round_symbol(s[0], s[1], self.diagram_config.symbol_diameter), fill=self.diagram_config.symbol_fill_color)
-            self.canvas.create_text(s[0], s[1], text=f"S{sensor.id}", fill=self.diagram_config.symbol_text_color)
+                diagram_helper.round_symbol(s[0], s[1], self.diagram_config.symbol_diameter),
+                fill=self.diagram_config.symbol_fill_color, tags="sensor")
+            self.canvas.create_text(s[0], s[1], text=f"S{sensor.id}", fill=self.diagram_config.symbol_text_color,
+                                    tags="sensor")
             self.sensor_indicators[sensor.id] = sensor_indicator_id
         except Exception as exc:
             print(f"Error drawing sensor: {str(exc)}")
