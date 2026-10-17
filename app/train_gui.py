@@ -183,8 +183,8 @@ class TrainController:
 
         self.scenario_panel_visible = False
         self.scenario_toggle_button = ttk.Button(
-            conn_frame, text="Show Scenario \u00bb", command=self._toggle_scenario_panel)
-        self.scenario_toggle_button.grid(row=0, column=4, padx=(15, 5))
+            self.right_frame, text="Scenario \u00bb", command=self._toggle_scenario_panel)
+        self.scenario_toggle_button.pack(side="top")
 
         self._build_diagram()
 
@@ -204,8 +204,7 @@ class TrainController:
 
         self._update_electrified_segments()
 
-        self.scenario_panel = ttk.LabelFrame(
-            self.root, text="Scenario", padding=10)
+        self.scenario_panel = ttk.LabelFrame(self.root, text="Scenario")
 
         self.scenario_open_button = ttk.Button(
             self.scenario_panel, text='Load from file', command=self.select_file)
@@ -515,11 +514,12 @@ class TrainController:
     def _toggle_scenario_panel(self):
         if self.scenario_panel_visible:
             self.scenario_panel.pack_forget()
-            self.scenario_toggle_button.config(text="Show Scenario \u00bb")
+            self.scenario_toggle_button.config(text="Scenario \u00bb")
         else:
-            self.scenario_panel.pack(
-                side="right", fill="y")
-            self.scenario_toggle_button.config(text="Hide Scenario \u00ab")
+            self.scenario_panel.pack(side="right", fill="y", before=self.right_frame)
+            # Force a redraw; on macOS the re-mapped panel's children stay blank otherwise.
+            self.root.update_idletasks()
+            self.scenario_toggle_button.config(text="Scenario \u00ab")
         self.scenario_panel_visible = not self.scenario_panel_visible
 
     def run_scenario(self):
