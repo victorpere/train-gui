@@ -38,6 +38,9 @@ class DiagramConfig:
         self.line_width = int(config.get("Diagram", "line_width"))
         self.line_width_point_active = int(config.get(
             "Diagram", "line_width_point_active"))
+        self.block_width = int(config.get("Diagram", "block_width"))
+        self.block_unoccupied_color = config.get("Diagram", "block_unoccupied_color")
+        self.block_occupied_color = config.get("Diagram", "block_occupied_color")
         self.line_color = config.get("Diagram", "line_color")
         self.electrified_color = config.get("Diagram", "electrified_color")
         self.symbol_outline_color = config.get(
@@ -179,6 +182,7 @@ class TrainController:
         self.speed_displays: dict[int, SpeedDisplay] = {}
         self.sensor_indicators: dict[int, int] = {}
         self.segments: dict[int, Tuple[str, int]] = {}
+        self.block_items: dict[int, list[int]] = {}
 
         self.diagram_config = DiagramConfig()
         self.build_ui()
@@ -335,6 +339,7 @@ class TrainController:
         self.speed_displays.clear()
         self.sensor_indicators.clear()
         self.segments.clear()
+        self.block_items.clear()
 
     def select_layout_file(self):
         if self.scenario_runner.is_running:
@@ -455,8 +460,40 @@ class TrainController:
                     self.canvas.create_polygon(diagram_helper.feeder_symbol(
                         segment_center[0], segment_center[1]), fill=self.diagram_config.electrified_color, outline=self.diagram_config.symbol_outline_color, width=self.diagram_config.symbol_outline_width)
                 self.canvas.pack()
+            self._draw_blocks(segments)
         except Exception as exc:
             print(f"Error drawing diagram: {str(exc)}")
+
+    def _draw_blocks(self, diagram_segments: list):
+        segments_by_id = {s["id"]: s for s in diagram_segments}
+        for block in self.layout.components[DeviceType.BLOCK.name].values():
+            color = self._block_color(block.occupied)
+            items = []
+            for segment_id in block.segment_ids:
+                s = segments_by_id[segment_id]
+                width = self.diagram_config.block_width
+                if s["shape"] == "straight":
+                    items.append(self.canvas.create_line(
+                        s["start_point"][0], s["start_point"][1], s["end_point"][0], s["end_point"][1],
+                        width=width, fill=color, tags="block"))
+                elif s["shape"] == "curve":
+                    p = diagram_helper.curve_to_tkinter_arc(s)
+                    items.append(self.canvas.create_arc(
+                        p["x1"], p["y1"], p["x2"], p["y2"], start=p["start"], extent=p["extent"],
+                        style=tk.ARC, width=width, outline=color, tags="block"))
+            self.block_items[block.id] = items
+        self.canvas.tag_lower("block")
+
+    def _block_color(self, occupied: bool) -> str:
+        return self.diagram_config.block_occupied_color if occupied else self.diagram_config.block_unoccupied_color
+
+    def _update_block_diagram(self, block_id: int):
+        block = self.layout.components[DeviceType.BLOCK.name][block_id]
+        for item in self.block_items.get(block_id, []):
+            if self.canvas.type(item) == "arc":
+                self.canvas.itemconfig(item, outline=self._block_color(block.occupied))
+            else:
+                self.canvas.itemconfig(item, fill=self._block_color(block.occupied))
 
     def _build_point_diagram(self, point: Point):
         try:
@@ -503,9 +540,7 @@ class TrainController:
             print(f"Failed to update point diagram: {str(exc)}")
 
     def _add_sensor_indicator(self, sensor: Sensor):
-        if sensor.diagram_data is None:
-            return
-        s: dict = sensor.diagram_data.get("location")
+        s = self.layout.node_location(sensor.node)
         if s is None:
             return
         try:
@@ -738,6 +773,8 @@ class TrainController:
                 speed: float = float(message.value) * \
                     self.layout.scale * 0.0036
                 speed_display.last_speed.set(speed)
+        elif message.device_type == DeviceType.BLOCK:
+            self._update_block_diagram(message.device_id)
         elif message.device_type == DeviceType.SENSOR:
             sensor_indicator = self.sensor_indicators.get(message.device_id)
             if not sensor_indicator is None:

@@ -415,3 +415,37 @@ def test_point_switch_in_test_mode_without_connection(fake_factory):
     ok, msg = layout.command(switch)
     assert ok, msg
     assert point.direction == 1
+
+
+def test_blocks_are_derived_from_sensor_nodes(fake_factory):
+    layout = Layout(Communicator(serial_factory=fake_factory, time_to_initialize=0))
+    ok, msg = layout.load(load_data_from_file("data/layouts/layout01.json"))
+    assert ok, msg
+
+    blocks = layout.components[DeviceType.BLOCK.name]
+    assert {b_id: b.segment_ids for b_id, b in blocks.items()} == {
+        1: [1, 3, 4, 5, 6, 8, 9, 10, 11, 17],
+        2: [2],
+        12: [12],
+        18: [18],
+    }
+    assert blocks[2].sensor_ids == [0, 3]
+    assert blocks[12].sensor_ids == [1]
+    assert blocks[12].occupied and not blocks[1].occupied
+    assert layout.node_location(layout.components[DeviceType.SENSOR.name][1].node) == (340, 96)
+
+
+def test_validate_layout_sensor_and_block_problems():
+    bad = copy.deepcopy(layout_data)
+    bad["sensors"].append({"id": 2, "node": 99})
+    bad["sensors"].append({"id": 3, "node": 2})
+    bad["sensors"].append({"id": 4, "diagram": {"location": [0, 0]}})
+    bad["blocks"].append({"id": 2})
+    bad["diagram"]["segments"][1]["start_point"] = [11, 0]
+
+    errors = validate_layout(bad)
+    assert any("sensor 2: unknown node 99" in e for e in errors)
+    assert any("sensor 3: node 2 already has a sensor" in e for e in errors)
+    assert any("sensor 4: diagram location is no longer supported" in e for e in errors)
+    assert any("block 2: no such block" in e for e in errors)
+    assert any("node 1 is at (10, 0) and (11, 0)" in e for e in errors)

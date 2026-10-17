@@ -44,6 +44,48 @@ class Callback(Protocol):
     def __call__(self, name: str, value: object): ...
 
 
+def derive_blocks(segment_nodes: dict[int, tuple], sensor_nodes: set) -> dict[int, list[int]]:
+    """Groups segments into blocks: segments joined at a node without a sensor share a block.
+    A block is identified by its lowest segment id."""
+    node_segments: dict[int, list[int]] = {}
+    for segment_id, nodes in segment_nodes.items():
+        for node in nodes:
+            node_segments.setdefault(node, []).append(segment_id)
+
+    blocks: dict[int, list[int]] = {}
+    seen: set = set()
+    for start in sorted(segment_nodes):
+        if start in seen:
+            continue
+        members = [start]
+        seen.add(start)
+        for segment_id in members:
+            for node in segment_nodes[segment_id]:
+                if node in sensor_nodes:
+                    continue
+                for other_id in node_segments[node]:
+                    if other_id not in seen:
+                        seen.add(other_id)
+                        members.append(other_id)
+        blocks[start] = sorted(members)
+    return blocks
+
+
+def derive_node_locations(segment_nodes: dict[int, tuple], diagram_segments: list | None) -> tuple[dict, list[str]]:
+    """Node coordinates taken from the diagram segment end points, plus any disagreements between them"""
+    locations: dict[int, tuple] = {}
+    conflicts: list[str] = []
+    for segment in diagram_segments or []:
+        nodes = segment_nodes.get(segment.get("id"))
+        if nodes is None:
+            continue
+        for node, point in zip(nodes, (segment.get("start_point"), segment.get("end_point"))):
+            point = tuple(point)
+            if locations.setdefault(node, point) != point:
+                conflicts.append(f"node {node} is at {locations[node]} and {point} (segment {segment.get('id')})")
+    return locations, conflicts
+
+
 def validate_layout(layout_data: dict) -> list[str]:
     """Returns a list of problems found in a layout definition (empty if valid)"""
     errors: list[str] = []
@@ -84,6 +126,29 @@ def validate_layout(layout_data: dict) -> list[str]:
     collect_ids("speed_traps", layout_data.get("speed_traps", []))
     points = layout_data.get("points", [])
     collect_ids("points", points)
+
+    known_nodes = {node for nodes in segment_nodes.values() for node in nodes}
+    sensor_nodes: dict[int, int] = {}
+    for sensor in layout_data.get("sensors", []):
+        where = f"sensor {sensor.get('id')}"
+        if "diagram" in sensor:
+            errors.append(f"{where}: diagram location is no longer supported, define the sensor's node")
+        node = sensor.get("node")
+        if node not in known_nodes:
+            errors.append(f"{where}: unknown node {node}")
+        elif node in sensor_nodes.values():
+            errors.append(f"{where}: node {node} already has a sensor")
+        else:
+            sensor_nodes[sensor.get("id")] = node
+
+    _, conflicts = derive_node_locations(segment_nodes, diagram_segments)
+    errors.extend(f"diagram.segments: {conflict}" for conflict in conflicts)
+
+    block_ids = derive_blocks(segment_nodes, set(sensor_nodes.values()))
+    for block in layout_data.get("blocks", []):
+        if block.get("id") not in block_ids:
+            errors.append(f"block {block.get('id')}: no such block, blocks are identified by their "
+                          f"lowest segment id (valid ids: {sorted(block_ids)})")
 
     for joint in layout_data.get("insulated_joints", []):
         node, joined = joint.get("node"), joint.get("segments")
@@ -156,6 +221,7 @@ class Layout:
         self._segment_nodes: dict[int, tuple[int, int]] = {}
         self._points_by_node: dict[int, Point] = {}
         self._insulated_joints: set[tuple[int, frozenset]] = set()
+        self._node_locations: dict[int, tuple] = {}
         # Lets points switch without a serial connection
         self.test_mode = False
 
@@ -191,12 +257,8 @@ class Layout:
                 self.components[DeviceType.TARGET_VOLTAGE.name][track.id] = track
                 self.components[DeviceType.ACTUAL_VOLTAGE.name][track.id] = track
 
-            for block_data in blocks:
-                block = Block(block_data.get("id"), block_data.get("occupied", False), self._on_component_event)
-                self.components[DeviceType.BLOCK.name][block.id] = block
-
             for sensor_data in sensors:
-                sensor = Sensor(sensor_data.get("id"), self._on_component_event, sensor_data.get("diagram"))
+                sensor = Sensor(sensor_data.get("id"), self._on_component_event, node=sensor_data.get("node"))
                 self.components[DeviceType.SENSOR.name][sensor.id] = sensor
 
             for speed_trap_data in speed_traps:
@@ -219,6 +281,18 @@ class Layout:
             self._insulated_joints = {(joint["node"], frozenset(joint["segments"]))
                                       for joint in layout_data.get("insulated_joints", [])}
 
+            self._node_locations, _ = derive_node_locations(
+                self._segment_nodes, (self.diagram_data or {}).get("segments"))
+
+            sensor_nodes = {sensor.node: sensor.id for sensor in self.components[DeviceType.SENSOR.name].values()}
+            initially_occupied = {b["id"]: b.get("occupied", False) for b in blocks}
+            for block_id, segment_ids in derive_blocks(self._segment_nodes, set(sensor_nodes)).items():
+                touched_nodes = {node for segment_id in segment_ids for node in self._segment_nodes[segment_id]}
+                block = Block(block_id, initially_occupied.get(block_id, False), self._on_component_event,
+                              segment_ids=segment_ids,
+                              sensor_ids=sorted(sensor_nodes[node] for node in touched_nodes if node in sensor_nodes))
+                self.components[DeviceType.BLOCK.name][block.id] = block
+
             self._points_by_node = {}
             for point_data in points:
                 point = Point(point_data, layout=self, cb=self._on_component_event)
@@ -235,6 +309,10 @@ class Layout:
     def add_listener(self, cb: Callback):
         """Add a listener to layout component events"""
         self._listeners.append(cb)
+
+    def node_location(self, node: int) -> tuple | None:
+        """Diagram coordinates of a node, if the layout has a diagram"""
+        return self._node_locations.get(node)
 
     def command(self, message: Message) -> Tuple[bool, str]:
         """Processes command to component"""
@@ -430,10 +508,13 @@ class Block:
     """A block that is either occupied or not occupied
     """
 
-    def __init__(self, id: int, occupied: bool, cb: Callback):
+    def __init__(self, id: int, occupied: bool, cb: Callback, segment_ids: list[int] = (), sensor_ids: list[int] = ()):
         self.id = id
         self._occupied = occupied
         self._cb = cb
+        self.segment_ids = list(segment_ids)
+        # Sensors located at the block's boundary nodes
+        self.sensor_ids = list(sensor_ids)
 
     @property
     def occupied(self):
@@ -461,10 +542,10 @@ class Sensor:
     """Sensor that detects train presence
     """
 
-    def __init__(self, id: int, cb: Callback, diagram_data: dict = None):
+    def __init__(self, id: int, cb: Callback, node: int = None):
         self.id = id
         self._cb = cb
-        self.diagram_data = diagram_data
+        self.node = node
         self._on: bool = False
         self.ON_THRESHOLD = 1
 

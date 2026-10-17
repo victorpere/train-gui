@@ -121,35 +121,15 @@
   ],
   "blocks": [
     {
-      "id": 0,
+      "id": 12,
       "occupied": true
     }
   ],
   "sensors": [
-    {
-      "id": 0,
-      "diagram": {
-        "location": [440, 50]
-      }
-    },
-    {
-      "id": 1,
-      "diagram": {
-        "location": [340, 96]
-      }
-    },
-    {
-      "id": 2,
-      "diagram": {
-        "location": [330, 120]
-      }
-    },
-    {
-      "id": 3,
-      "diagram": {
-        "location": [450, 250]
-      }
-    }
+    { "id": 0, "node": 3 },
+    { "id": 1, "node": 10 },
+    { "id": 2, "node": 8 },
+    { "id": 3, "node": 4 }
   ],
   "points": [
     {
