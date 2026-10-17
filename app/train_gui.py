@@ -551,11 +551,14 @@ class TrainController:
             electrified_segments = self.layout.electrified_segments()
             for segment in self.segments.values():
                 self.canvas.itemconfig(
-                    segment[1], fill=self.diagram_config.line_color)
-            for track_segment_ids in electrified_segments.values():
+                    segment[1], fill=self.diagram_config.line_color, arrow=tk.NONE)
+            for track_id, track_segment_ids in electrified_segments.items():
+                track = self.layout.components[DeviceType.TARGET_VOLTAGE.name][track_id]
+                # Lines are drawn from the segment's start to its end, the direction of positive voltage
+                arrow = {1: tk.LAST, -1: tk.FIRST}.get(track.actual_direction, tk.NONE)
                 for segment_id in track_segment_ids:
                     self.canvas.itemconfig(
-                        self.segments[segment_id][1], fill=self.diagram_config.electrified_color)
+                        self.segments[segment_id][1], fill=self.diagram_config.electrified_color, arrow=arrow)
         except Exception as exc:
             print(f"_update_electrified_segments exception: {str(exc)}")
 
@@ -742,6 +745,7 @@ class TrainController:
             control = self.controls.get(message.device_id)
             if not control is None:
                 control.actual_voltage.set(abs(message.value))
+                self._update_electrified_segments()
             else:
                 self.set_message("error", f"Unknown track id: {message}")
                 return False, "Unknown device id"
