@@ -220,4 +220,5 @@ __marimo__/
 .streamlit/secrets.toml
 
 data/layouts/*
+data/scenarios/*
 config/state.json

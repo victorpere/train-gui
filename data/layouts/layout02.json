@@ -3,19 +3,62 @@
   "description": "Simple loop",
   "scale": 150.0,
   "segments": [
-    { "id": 1, "from": 0, "to": 1 },
-    { "id": 8, "from": 1, "to": 2 },
-    { "id": 9, "from": 2, "to": 3 },
-    { "id": 2, "from": 3, "to": 4 },
-    { "id": 3, "from": 4, "to": 5 },
-    { "id": 4, "from": 5, "to": 0 },
-    { "id": 5, "from": 1, "to": 6 },
-    { "id": 10, "from": 6, "to": 9 },
-    { "id": 11, "from": 9, "to": 10 },
-    { "id": 12, "from": 10, "to": 12 }
+    {
+      "id": 1,
+      "from": 0,
+      "to": 1
+    },
+    {
+      "id": 8,
+      "from": 1,
+      "to": 2
+    },
+    {
+      "id": 9,
+      "from": 2,
+      "to": 3
+    },
+    {
+      "id": 2,
+      "from": 3,
+      "to": 4
+    },
+    {
+      "id": 3,
+      "from": 4,
+      "to": 5
+    },
+    {
+      "id": 4,
+      "from": 5,
+      "to": 0
+    },
+    {
+      "id": 5,
+      "from": 1,
+      "to": 6
+    },
+    {
+      "id": 10,
+      "from": 6,
+      "to": 9
+    },
+    {
+      "id": 11,
+      "from": 9,
+      "to": 10
+    },
+    {
+      "id": 12,
+      "from": 10,
+      "to": 12
+    }
   ],
   "insulated_joints": [
-    { "node": 4, "segments": [3, 2] }
+    {
+      "node": 4,
+      "segments": [3, 2]
+    }
   ],
   "diagram": {
     "segments": [
@@ -101,9 +144,22 @@
     }
   ],
   "sensors": [
-    { "id": 0, "node": 3 },
-    { "id": 1, "node": 10 },
-    { "id": 3, "node": 4 }
+    {
+      "id": 0,
+      "node": 3
+    },
+    {
+      "id": 1,
+      "node": 10
+    },
+    {
+      "id": 3,
+      "node": 4
+    },
+    {
+      "id": 2,
+      "node": 0
+    }
   ],
   "points": [
     {
