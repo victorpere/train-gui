@@ -11,7 +11,7 @@ from tkinter import filedialog, messagebox, ttk
 
 import diagram_helper
 from railway import derive_blocks, derive_node_locations, validate_layout
-from util import load_data_from_file, save_data_to_file
+from util import load_canvas_size, load_data_from_file, save_data_to_file
 
 GRID = 10
 SNAP_DISTANCE = 8
@@ -458,10 +458,12 @@ class LayoutEditor:
                         command=self._refresh_preview).pack(side="left", padx=2)
         ttk.Checkbutton(toolbar, text="Show ids", variable=self.show_ids,
                         command=self._redraw).pack(side="left", padx=10)
-        self.canvas = tk.Canvas(left, width=760, height=520, bg="white", highlightthickness=1,
+        canvas_width, canvas_height = load_canvas_size()
+        self.canvas = tk.Canvas(left, width=canvas_width, height=canvas_height, bg="white", highlightthickness=1,
                                 highlightbackground="gray")
-        self.canvas.pack(fill="both", expand=True)
-        ttk.Label(left, textvariable=self.status, anchor="w", padding=4, wraplength=740).pack(fill="x")
+        self.canvas.pack(anchor="nw")
+        ttk.Label(left, textvariable=self.status, anchor="w", padding=4,
+                  wraplength=canvas_width).pack(fill="x")
         self.canvas.bind("<Button-1>", self._on_press)
         self.canvas.bind("<B1-Motion>", self._on_drag)
         self.canvas.bind("<ButtonRelease-1>", self._on_release)
@@ -1022,7 +1024,6 @@ class LayoutEditor:
 
 def main():
     root = tk.Tk()
-    root.geometry("1160x640")
     LayoutEditor(root, sys.argv[1] if len(sys.argv) > 1 else None)
     root.mainloop()
 

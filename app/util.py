@@ -1,7 +1,14 @@
+import configparser
 import json
 import os
 import yaml
 from typing import Optional
+
+def load_canvas_size(config_path: str = "config/config.ini") -> tuple[int, int]:
+    """Diagram canvas (width, height), shared by the train GUI and the layout editor."""
+    config = configparser.ConfigParser()
+    config.read(config_path)
+    return int(config.get("Diagram", "canvas_width")), int(config.get("Diagram", "canvas_height"))
 
 def load_data_from_file(filename):
     """Load data from a JSON or YAML file, based on its extension."""

@@ -9,7 +9,7 @@ import tkinter.font as tkFont
 from scenario import ScenarioRunner, ScenarioState, ScenarioStatus
 from railway import Layout, Message, MessageType, DeviceType, Sensor, Point
 from communication import Communicator
-from util import load_data_from_file, save_data_to_file
+from util import load_data_from_file, save_data_to_file, load_canvas_size
 import diagram_helper
 
 DEFAULT_LAYOUT_PATH = os.path.join("data", "layouts", "layout01.json")
@@ -35,6 +35,7 @@ class DiagramConfig:
         config = configparser.ConfigParser()
         # Read the configuration file
         config.read('config/config.ini')
+        self.canvas_width, self.canvas_height = load_canvas_size()
         self.line_width = int(config.get("Diagram", "line_width"))
         self.line_width_point_active = int(config.get(
             "Diagram", "line_width_point_active"))
@@ -442,7 +443,8 @@ class TrainController:
         if self.layout.diagram_data is None:
             return
         try:
-            self.canvas = tk.Canvas(self.layout_content_frame, width=600, height=300)
+            self.canvas = tk.Canvas(self.layout_content_frame, width=self.diagram_config.canvas_width,
+                                    height=self.diagram_config.canvas_height)
             segments: list = self.layout.diagram_data.get("segments")
             for s in segments:
                 if s["shape"] == "straight":
