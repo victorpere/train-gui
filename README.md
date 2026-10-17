@@ -13,6 +13,12 @@ Lightweight GUI and model for controlling an N-scale model railway via a serial-
 python3 app/train_gui.py
 ```
 
+### Run the layout editor
+
+```bash
+python3 app/layout_editor.py [data/layouts/layout01.json]
+```
+
 ### Run tests
 
 ```bash
