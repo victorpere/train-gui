@@ -337,10 +337,81 @@ def test_validate_layout_reports_problems(fake_factory):
     assert any("unknown sensor 99" in e for e in errors)
     assert any("unknown track 42" in e for e in errors)
     assert any("unknown segment 77" in e for e in errors)
-    assert any("unknown segment 55" in e for e in errors)
+    assert any("unknown feeder segment 55" in e for e in errors)
 
     communicator = Communicator(serial_factory=fake_factory, time_to_initialize=0)
     layout = Layout(communicator)
     ok, msg = layout.load(bad)
     assert not ok
     assert "duplicate id 1" in msg
+
+
+def test_validate_layout_rejects_inconsistent_graph():
+    bad = copy.deepcopy(layout_data)
+    bad["points"][0]["node"] = 3
+    bad["tracks"][0]["segments"] = [[1]]
+
+    errors = validate_layout(bad)
+    assert any("must both touch node 3" in e for e in errors)
+    assert any("nested segments are no longer supported" in e for e in errors)
+
+    undrawn = copy.deepcopy(layout_data)
+    undrawn["segments"].append({"id": 9, "from": 3, "to": 4})
+    assert any("segment 9 is missing from diagram.segments" in e for e in validate_layout(undrawn))
+
+
+def test_electrified_segments_follow_points(fake_factory):
+    communicator = Communicator(serial_factory=fake_factory, time_to_initialize=0)
+    layout = Layout(communicator)
+    ok, msg = layout.load(layout_data)
+    assert ok, msg
+    ok, msg = layout.communicator.connect("/dev/fake")
+    assert ok, msg
+
+    assert sorted(layout.electrified_segments()[1]) == [1, 2, 3]
+
+    skip_check = Message(
+        message_type=MessageType.SET,
+        device_type=DeviceType.POINT_DIRECTION_SKIP_CHECK,
+        device_id=1,
+        value=1
+    )
+    ok, msg = layout.command(skip_check)
+    assert ok, msg
+    assert sorted(layout.electrified_segments()[1]) == [1, 4]
+
+
+def test_insulated_joint_isolates_segments(fake_factory):
+    jointed = copy.deepcopy(layout_data)
+    jointed["insulated_joints"] = [{"node": 2, "segments": [2, 3]}]
+
+    communicator = Communicator(serial_factory=fake_factory, time_to_initialize=0)
+    layout = Layout(communicator)
+    ok, msg = layout.load(jointed)
+    assert ok, msg
+    assert sorted(layout.electrified_segments()[1]) == [1, 2]
+
+    bad = copy.deepcopy(layout_data)
+    bad["insulated_joints"] = [{"node": 4, "segments": [2, 3]}]
+    assert any("must both touch the node" in e for e in validate_layout(bad))
+
+
+def test_point_switch_in_test_mode_without_connection(fake_factory):
+    communicator = Communicator(serial_factory=fake_factory, time_to_initialize=0)
+    layout = Layout(communicator)
+    layout.load(layout_data)
+    point: Point = layout.components[DeviceType.POINT_DIRECTION.name][1]
+    switch = Message(
+        message_type=MessageType.SET,
+        device_type=DeviceType.POINT_DIRECTION,
+        device_id=1,
+        value=1
+    )
+
+    ok, _ = layout.command(switch)
+    assert not ok
+
+    layout.test_mode = True
+    ok, msg = layout.command(switch)
+    assert ok, msg
+    assert point.direction == 1

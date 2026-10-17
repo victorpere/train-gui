@@ -204,6 +204,10 @@ class TrainController:
             conn_frame, text="Disconnected", foreground="red")
         self.status_label.grid(row=0, column=3)
 
+        self.test_mode_var = tk.BooleanVar(value=self.layout.test_mode)
+        ttk.Checkbutton(conn_frame, text="Test Mode", variable=self.test_mode_var,
+                        command=self._toggle_test_mode).grid(row=1, column=0, columnspan=2, sticky="w", pady=(5, 0))
+
         layout_file_frame = ttk.LabelFrame(self.left_frame, padding=10)
         layout_file_frame.pack(fill="x", padx=10, pady=5)
 
@@ -628,6 +632,11 @@ class TrainController:
             self.scenario_runner.stop()
         self.stop_scenario_button.config(state="disabled")
         self.set_message("warning", "Stopping scenario")
+
+    def _toggle_test_mode(self):
+        self.layout.test_mode = self.test_mode_var.get()
+        self.set_message("info", "Test mode: points switch without a serial connection"
+                         if self.layout.test_mode else "")
 
     def connect_serial(self):
         self.set_message()

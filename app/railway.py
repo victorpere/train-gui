@@ -60,58 +60,70 @@ def validate_layout(layout_data: dict) -> list[str]:
                 ids.add(item_id)
         return ids
 
+    segments = layout_data.get("segments", [])
+    segment_ids = collect_ids("segments", segments)
+    segment_nodes: dict[int, tuple] = {}
+    for segment in segments:
+        nodes = (segment.get("from"), segment.get("to"))
+        if not all(isinstance(node, int) for node in nodes):
+            errors.append(f"segment {segment.get('id')}: from and to must be integer node ids")
+        else:
+            segment_nodes[segment.get("id")] = nodes
+
     diagram_segments = (layout_data.get("diagram") or {}).get("segments")
-    # None means no diagram, so segment references cannot be checked
-    segment_ids = None if diagram_segments is None else collect_ids("diagram.segments", diagram_segments)
+    if diagram_segments is not None:
+        drawn_ids = collect_ids("diagram.segments", diagram_segments)
+        for segment_id in sorted(drawn_ids - segment_ids):
+            errors.append(f"diagram.segments: segment {segment_id} is not defined in segments")
+        for segment_id in sorted(segment_ids - drawn_ids):
+            errors.append(f"segments: segment {segment_id} is missing from diagram.segments")
+
     track_ids = collect_ids("tracks", layout_data.get("tracks", []))
     collect_ids("blocks", layout_data.get("blocks", []))
     sensor_ids = collect_ids("sensors", layout_data.get("sensors", []))
     collect_ids("speed_traps", layout_data.get("speed_traps", []))
     points = layout_data.get("points", [])
-    point_ids = collect_ids("points", points)
+    collect_ids("points", points)
 
-    def check_segment(segment_id: int, where: str):
-        if segment_ids is not None and segment_id not in segment_ids:
-            errors.append(f"{where}: unknown segment {segment_id}")
+    for joint in layout_data.get("insulated_joints", []):
+        node, joined = joint.get("node"), joint.get("segments")
+        where = f"insulated joint at node {node}"
+        if not isinstance(joined, list) or len(joined) != 2 or joined[0] == joined[1]:
+            errors.append(f"{where}: segments must list 2 different segments")
+        elif any(node not in segment_nodes.get(segment_id, ()) for segment_id in joined):
+            errors.append(f"{where}: segments {joined} must both touch the node")
 
-    point_routes: dict[int, list] = {}
+    point_nodes: set = set()
     for point in points:
         where = f"point {point.get('id')}"
-        routes = point.get("direction_segments")
-        if not isinstance(routes, list) or len(routes) != 2:
-            errors.append(f"{where}: direction_segments must list exactly 2 segments")
-        else:
-            point_routes[point.get("id")] = routes
-            for segment_id in routes:
-                check_segment(segment_id, where)
+        node = point.get("node")
+        if node in point_nodes:
+            errors.append(f"{where}: node {node} already has a point")
+        point_nodes.add(node)
         if point.get("initial_direction") not in (0, 1):
             errors.append(f"{where}: initial_direction must be 0 or 1")
-
-    def check_path(path: list, where: str):
-        for item in path:
-            if isinstance(item, int):
-                check_segment(item, where)
-                continue
-            point_id = item.get("point_id")
-            if point_id not in point_ids:
-                errors.append(f"{where}: unknown point {point_id}")
-                continue
-            branches = item.get("direction_segments")
-            if not isinstance(branches, list) or len(branches) != 2:
-                errors.append(f"{where}: point {point_id} must have exactly 2 direction_segments")
-                continue
-            for branch, route in zip(branches, point_routes.get(point_id, [])):
-                if branch and isinstance(branch[0], int) and branch[0] != route:
-                    errors.append(f"{where}: point {point_id} branch starts with segment {branch[0]}, "
-                                  f"but the point defines {route}")
-                check_path(branch, where)
+        routes = point.get("direction_segments")
+        if not isinstance(routes, list) or len(routes) != 2 or routes[0] == routes[1]:
+            errors.append(f"{where}: direction_segments must list 2 different segments")
+            continue
+        unknown = [route for route in routes if route not in segment_ids]
+        for route in unknown:
+            errors.append(f"{where}: unknown segment {route}")
+        if unknown:
+            continue
+        touching = [segment_id for segment_id, nodes in segment_nodes.items() if node in nodes]
+        if any(route not in touching for route in routes):
+            errors.append(f"{where}: direction_segments {routes} must both touch node {node}")
+        elif len(touching) != 3:
+            errors.append(f"{where}: node {node} must join exactly 3 segments, found {len(touching)}")
 
     for track in layout_data.get("tracks", []):
         where = f"track {track.get('id')}"
-        if track.get("feeder_segment_id") is not None:
-            check_segment(track["feeder_segment_id"], where)
-        for path in track.get("segments") or []:
-            check_path(path, where)
+        if "segments" in track:
+            errors.append(f"{where}: nested segments are no longer supported, define top-level segments")
+        feeder = track.get("feeder_segment_id")
+        if feeder is not None and feeder not in segment_ids:
+            errors.append(f"{where}: unknown feeder segment {feeder}")
 
     for trap in layout_data.get("speed_traps", []):
         where = f"speed trap {trap.get('id')}"
@@ -140,6 +152,12 @@ class Layout:
         self._listeners: List[Callback] = []
         self._speed_trap_listeners: List[Callback] = []
         self.diagram_data = None
+        self._node_segments: dict[int, list[int]] = {}
+        self._segment_nodes: dict[int, tuple[int, int]] = {}
+        self._points_by_node: dict[int, Point] = {}
+        self._insulated_joints: set[tuple[int, frozenset]] = set()
+        # Lets points switch without a serial connection
+        self.test_mode = False
 
     def load(self, layout_data: dict) -> Tuple[bool, str]:
         """Creates layout and components from a dictionary definition"""
@@ -168,8 +186,8 @@ class Layout:
                 self.components[device_type_name] = dict()
 
             for track_data in tracks:
-                track = Track(track_data.get("id"), self._on_component_event, self.command, feeder_segment_id=track_data.get(
-                    "feeder_segment_id"), segments_data=track_data.get("segments"))
+                track = Track(track_data.get("id"), self._on_component_event,
+                              feeder_segment_id=track_data.get("feeder_segment_id"))
                 self.components[DeviceType.TARGET_VOLTAGE.name][track.id] = track
                 self.components[DeviceType.ACTUAL_VOLTAGE.name][track.id] = track
 
@@ -192,10 +210,21 @@ class Layout:
                 self._speed_trap_listeners.append(speed_trap.receive_component_event)
                 self.components[DeviceType.SPEED.name][speed_trap.id] = speed_trap
 
+            self._segment_nodes = {s["id"]: (s["from"], s["to"]) for s in layout_data.get("segments", [])}
+            self._node_segments = {}
+            for segment_id, nodes in self._segment_nodes.items():
+                for node in nodes:
+                    self._node_segments.setdefault(node, []).append(segment_id)
+
+            self._insulated_joints = {(joint["node"], frozenset(joint["segments"]))
+                                      for joint in layout_data.get("insulated_joints", [])}
+
+            self._points_by_node = {}
             for point_data in points:
                 point = Point(point_data, layout=self, cb=self._on_component_event)
                 self.components[DeviceType.POINT_DIRECTION.name][point.id] = point
                 self.components[DeviceType.POINT_DIRECTION_SKIP_CHECK.name][point.id] = point
+                self._points_by_node[point.node] = point
 
             return True, ""
 
@@ -229,9 +258,30 @@ class Layout:
         track_components = self.components.get(DeviceType.TARGET_VOLTAGE.name)
         for track_component in track_components.values():
             track: Track = track_component
-            segments[track.id] = track.electrified_segments()
-        # print(f"Layout.electrified_segments: {segments}")
+            segments[track.id] = self._connected_segments(track.feeder_segment_id)
         return segments
+
+    def _connected_segments(self, start_segment_id: int) -> list[int]:
+        """Segments reachable from a segment, passing through points only along their active route"""
+        if start_segment_id not in self._segment_nodes:
+            return []
+        reachable = [start_segment_id]
+        for segment_id in reachable:
+            for node in self._segment_nodes[segment_id]:
+                for other_id in self._node_segments[node]:
+                    if other_id not in reachable and self._joined_at_node(node, segment_id, other_id):
+                        reachable.append(other_id)
+        return reachable
+
+    def _joined_at_node(self, node: int, segment_id: int, other_id: int) -> bool:
+        if (node, frozenset((segment_id, other_id))) in self._insulated_joints:
+            return False
+        point = self._points_by_node.get(node)
+        if point is None:
+            return True
+        routes = point.direction_segments
+        stem_id = next(s for s in self._node_segments[node] if s not in routes)
+        return {segment_id, other_id} == {stem_id, routes[point.direction]}
 
     def _initialize(self, delay: float):
         points = self.components.get(DeviceType.POINT_DIRECTION.name)
@@ -300,9 +350,11 @@ class Layout:
             (message.device_type == DeviceType.TARGET_VOLTAGE or \
              message.device_type == DeviceType.POINT_DIRECTION or \
              message.device_type == DeviceType.POINT_DIRECTION_SKIP_CHECK):
-            ok, msg = self._send_message(message)
-            if not ok:
-                return False, msg
+            is_point = message.device_type != DeviceType.TARGET_VOLTAGE
+            if not (is_point and self.test_mode and not self.communicator.is_connected):
+                ok, msg = self._send_message(message)
+                if not ok:
+                    return False, msg
 
         for cb in list(self._listeners):
             try:
@@ -319,48 +371,12 @@ class Track:
     """Encapsulates track voltage control.
     """
 
-    def __init__(self, id: int, cb: Callback, command: Callback, feeder_segment_id: int, segments_data: list = None):
+    def __init__(self, id: int, cb: Callback, feeder_segment_id: int = None):
         self.id = id
         self._target_voltage = 0
         self._actual_voltage = 0
         self._cb = cb
-        self._command = command
-        self._segments_data = segments_data
-        self._feeder_segment_id = feeder_segment_id
-
-    def electrified_segments(self) -> list[int]:
-        segments: list[int] = []
-        try:
-            segments.append(self._feeder_segment_id)
-            for direction_segments in self._segments_data:
-                segments = segments + self._path(direction_segments)
-            return segments
-        except Exception as exc:
-            print(f"track.electrified_segments exc: {str(exc)}")
-
-    def _path(self, segments: list) -> list[int]:
-        path_segments: list[int] = []
-        try:
-            for segment in segments:
-                if isinstance(segment, int):
-                    path_segments.append(segment)
-                else:
-                    point_id = segment.get("point_id")
-                    message = Message(
-                        message_type=MessageType.QUERY,
-                        device_type=DeviceType.POINT_DIRECTION,
-                        device_id=point_id,
-                        value=0
-                    )
-                    ok, value = self._command(message)
-                    if not ok:
-                        print(f"Track._path error: {value}")
-                        return []
-                    direction = int(value)
-                    path_segments = path_segments + self._path(segment["direction_segments"][direction])
-            return path_segments
-        except Exception as exc:
-            print(f"Track._path exception: {str(exc)}")
+        self.feeder_segment_id = feeder_segment_id
 
     @property
     def actual_direction(self):
@@ -517,6 +533,7 @@ class SpeedTrap:
 class Point:
     def __init__(self, point_data: dict, layout: Layout, cb: Callback):
         self.id = point_data.get("id")
+        self.node: int = point_data.get("node")
         self._cb = cb
         self._direction: int = point_data.get("initial_direction")
         self._direction_segments: list[int] = []

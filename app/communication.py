@@ -31,6 +31,10 @@ class Communicator:
     def add_listener(self, cb: Callable[[str, object, float], None]):
         self._listeners.append(cb)
 
+    @property
+    def is_connected(self) -> bool:
+        return bool(self._ser and getattr(self._ser, "is_open", False))
+
     def _notify(self, name: str, value: object, delay: float = 0):
         for cb in list(self._listeners):
             try:

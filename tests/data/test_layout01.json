@@ -2,6 +2,12 @@
   "name": "test layout",
   "description": "layout with one track, two blocks and one sensor",
   "scale": 150.0,
+  "segments": [
+    { "id": 1, "from": 0, "to": 1 },
+    { "id": 2, "from": 1, "to": 2 },
+    { "id": 3, "from": 2, "to": 3 },
+    { "id": 4, "from": 1, "to": 4 }
+  ],
   "diagram": {
     "segments": [
       {
@@ -33,16 +39,7 @@
   "tracks": [
     {
       "id": 1,
-      "feeder_segment_id": 1,
-      "segments": [
-        [
-          1,
-          {
-            "point_id": 1,
-            "direction_segments": [[2, 3], [4]]
-          }
-        ]
-      ]
+      "feeder_segment_id": 1
     }
   ],
   "blocks": [
@@ -63,6 +60,7 @@
   "points": [
     {
       "id": 1,
+      "node": 1,
       "initial_direction": 0,
       "direction_segments": [2, 4]
     }

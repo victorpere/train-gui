@@ -2,6 +2,24 @@
   "name": "Layout 1",
   "description": "Simple loop",
   "scale": 150.0,
+  "segments": [
+    { "id": 1, "from": 0, "to": 1 },
+    { "id": 8, "from": 1, "to": 2 },
+    { "id": 9, "from": 2, "to": 3 },
+    { "id": 2, "from": 3, "to": 4 },
+    { "id": 3, "from": 4, "to": 5 },
+    { "id": 4, "from": 5, "to": 0 },
+    { "id": 5, "from": 1, "to": 6 },
+    { "id": 6, "from": 6, "to": 7 },
+    { "id": 17, "from": 7, "to": 8 },
+    { "id": 18, "from": 8, "to": 11 },
+    { "id": 10, "from": 6, "to": 9 },
+    { "id": 11, "from": 9, "to": 10 },
+    { "id": 12, "from": 10, "to": 12 }
+  ],
+  "insulated_joints": [
+    { "node": 4, "segments": [3, 2] }
+  ],
   "diagram": {
     "segments": [
       {
@@ -98,28 +116,7 @@
   "tracks": [
     {
       "id": 0,
-      "feeder_segment_id": 1,
-      "segments": [
-        [4, 3],
-        [
-          {
-            "point_id": 0,
-            "direction_segments": [
-              [8, 9, 2],
-              [
-                5,
-                {
-                  "point_id": 1,
-                  "direction_segments": [
-                    [10, 11, 12],
-                    [6, 17, 18]
-                  ]
-                }
-              ]
-            ]
-          }
-        ]
-      ]
+      "feeder_segment_id": 1
     }
   ],
   "blocks": [
@@ -157,11 +154,13 @@
   "points": [
     {
       "id": 0,
+      "node": 1,
       "initial_direction": 0,
       "direction_segments": [8, 5]
     },
     {
       "id": 1,
+      "node": 6,
       "initial_direction": 0,
       "direction_segments": [10, 6]
     }
