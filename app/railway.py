@@ -55,11 +55,15 @@ class Layout:
         self.name = ""
         self.description = ""
         self._listeners: List[Callback] = []
+        self._speed_trap_listeners: List[Callback] = []
         self.diagram_data = None
 
     def load(self, layout_data: dict) -> Tuple[bool, str]:
         """Creates layout and components from a dictionary definition"""
         try:
+            for cb in self._speed_trap_listeners:
+                self._listeners.remove(cb)
+            self._speed_trap_listeners.clear()
             self.name = layout_data.get("name", "n/a")
             self.description = layout_data.get("description", "n/a")
             self.scale: float = layout_data.get("scale", 0)
@@ -96,6 +100,7 @@ class Layout:
                                        distance=speed_trap_data.get("distance"),
                                        cb=self._on_component_event)
                 self.add_listener(speed_trap.receive_component_event)
+                self._speed_trap_listeners.append(speed_trap.receive_component_event)
                 self.components[DeviceType.SPEED.name][speed_trap.id] = speed_trap
 
             for point_data in points:

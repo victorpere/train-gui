@@ -9,7 +9,25 @@ import tkinter.font as tkFont
 from scenario import ScenarioRunner, ScenarioState, ScenarioStatus
 from railway import Layout, Message, MessageType, DeviceType, Sensor, Point
 from communication import Communicator
+from util import load_data_from_file, save_data_to_file
 import diagram_helper
+
+DEFAULT_LAYOUT_PATH = os.path.join("data", "layouts", "layout01.json")
+STATE_FILE = os.path.join("config", "state.json")
+
+
+def load_last_layout_path():
+    try:
+        return load_data_from_file(STATE_FILE).get("last_layout")
+    except Exception:
+        return None
+
+
+def save_last_layout_path(layout_path: str):
+    try:
+        save_data_to_file({"last_layout": layout_path}, STATE_FILE)
+    except Exception as exc:
+        print(f"Failed to save last layout: {exc}")
 
 
 class DiagramConfig:
@@ -125,8 +143,10 @@ class TrackControl:
 
 
 class TrainController:
-    def __init__(self, root, layout_data, buttons_data=None):
+    def __init__(self, root, layout_data, buttons_data=None, layout_path=None):
         self.root = root
+        self.layout_data = layout_data
+        self.layout_path = layout_path
         self.root.title("N-Scale Train Controller")
 
         # Mac default; change as needed
@@ -144,6 +164,9 @@ class TrainController:
 
         self.scenario_runner = ScenarioRunner(layout=self.layout)
         self.scenario_runner.add_listener(self._on_scenario_event)
+        self.layout_file = tk.StringVar()
+        self.layout_name = tk.StringVar()
+        self.layout_description = tk.StringVar()
         self.scenario_file = tk.StringVar()
         self.scenario_name = tk.StringVar()
         self.scenario_description = tk.StringVar()
@@ -167,7 +190,7 @@ class TrainController:
         self.right_frame.pack(side="right", fill="y")
 
         # Serial connection frame
-        conn_frame = ttk.LabelFrame(self.left_frame, padding=10)
+        conn_frame = ttk.Frame(self.left_frame, padding=10)
         conn_frame.pack(fill="x", padx=10, pady=5)
 
         ttk.Label(conn_frame, text="Port:").grid(row=0, column=0)
@@ -181,28 +204,33 @@ class TrainController:
             conn_frame, text="Disconnected", foreground="red")
         self.status_label.grid(row=0, column=3)
 
+        layout_file_frame = ttk.LabelFrame(self.left_frame, padding=10)
+        layout_file_frame.pack(fill="x", padx=10, pady=5)
+
+        ttk.Button(layout_file_frame, text="Load layout from file",
+                   command=self.select_layout_file).grid(row=0, column=0, sticky="w")
+        ttk.Label(layout_file_frame, textvariable=self.layout_file).grid(
+            row=0, column=1, sticky="w", padx=(10, 0))
+        for row, (caption, variable) in enumerate((
+                ("Name:", self.layout_name),
+                ("Description:", self.layout_description)), start=1):
+            ttk.Label(layout_file_frame, text=caption).grid(
+                row=row, column=0, sticky="nw", padx=(0, 5))
+            ttk.Label(layout_file_frame, textvariable=variable, wraplength=380,
+                      justify="left").grid(row=row, column=1, sticky="w")
+
+        self.layout_content_frame = ttk.Frame(self.left_frame)
+        self.layout_content_frame.pack(fill="x")
+
         self.scenario_panel_visible = False
         self.scenario_toggle_button = ttk.Button(
             self.right_frame, text="Scenario \u00bb", command=self._toggle_scenario_panel)
         self.scenario_toggle_button.pack(side="top")
 
-        self._build_diagram()
+        self.speed_frame_container = ttk.Frame(self.right_frame)
+        self.speed_frame_container.pack(side="top")
 
-        for device_type_name, component_list in self.layout.components.items():
-            if device_type_name == DeviceType.TARGET_VOLTAGE.name:
-                for component_id in component_list:
-                    self._build_control_ui(component_id)
-            elif device_type_name == DeviceType.SPEED.name:
-                for component_id in component_list:
-                    self._build_speed_ui(component_id)
-            elif device_type_name == DeviceType.SENSOR.name:
-                for component_id, sensor in component_list.items():
-                    self._add_sensor_indicator(sensor)
-            elif device_type_name == DeviceType.POINT_DIRECTION.name:
-                for component_id, point in component_list.items():
-                    self._build_point_diagram(point)
-
-        self._update_electrified_segments()
+        self._build_layout_ui()
 
         self.scenario_panel = ttk.LabelFrame(self.root, text="Scenario")
 
@@ -272,12 +300,74 @@ class TrainController:
         self.message_label = ttk.Label(message_frame, text="")
         self.message_label.pack()
 
+    def _build_layout_ui(self):
+        self.layout_file.set(os.path.basename(self.layout_path) if self.layout_path else "")
+        self.layout_name.set(self.layout.name)
+        self.layout_description.set(self.layout.description)
+
+        self._build_diagram()
+
+        for device_type_name, component_list in self.layout.components.items():
+            if device_type_name == DeviceType.TARGET_VOLTAGE.name:
+                for component_id in component_list:
+                    self._build_control_ui(component_id)
+            elif device_type_name == DeviceType.SPEED.name:
+                for component_id in component_list:
+                    self._build_speed_ui(component_id)
+            elif device_type_name == DeviceType.SENSOR.name:
+                for component_id, sensor in component_list.items():
+                    self._add_sensor_indicator(sensor)
+            elif device_type_name == DeviceType.POINT_DIRECTION.name:
+                for component_id, point in component_list.items():
+                    self._build_point_diagram(point)
+
+        self._update_electrified_segments()
+
+    def _clear_layout_ui(self):
+        for container in (self.layout_content_frame, self.speed_frame_container):
+            for child in container.winfo_children():
+                child.destroy()
+        self.controls.clear()
+        self.speed_displays.clear()
+        self.sensor_indicators.clear()
+        self.segments.clear()
+
+    def select_layout_file(self):
+        if self.scenario_runner.is_running:
+            self.set_message("warning", "Stop the running scenario before changing the layout")
+            return
+        initial_dir = os.path.dirname(self.layout_path) if self.layout_path else os.path.join("data", "layouts")
+        filepath = fd.askopenfilename(title='Open a layout file', initialdir=initial_dir,
+                                      filetypes=[('Layout files', '*.json *.yaml *.yml'), ('JSON files', '*.json'), ('YAML files', '*.yaml *.yml')])
+        if len(filepath) > 0:
+            self.load_layout_file(filepath)
+
+    def load_layout_file(self, layout_path):
+        try:
+            data = load_data_from_file(layout_path)
+        except Exception as exc:
+            self.set_message("error", str(exc))
+            return
+
+        previous_data, previous_path = self.layout_data, self.layout_path
+        ok, msg = self.layout.load(data)
+        if ok:
+            self.layout_data, self.layout_path = data, layout_path
+            save_last_layout_path(layout_path)
+            self.set_message("info", f"Layout loaded: {self.layout.name}")
+        else:
+            # Layout.load may have partially replaced components; restore the previous one.
+            self.layout.load(previous_data)
+            self.set_message("error", f"Layout failed to load: {msg}")
+        self._clear_layout_ui()
+        self._build_layout_ui()
+
     def _build_speed_ui(self, speed_trap_id: int):
         DASH_FONT = tkFont.Font(family="Menlo", size=30)
         speed_display = SpeedDisplay(speed_trap_id)
 
         dash_frame = ttk.LabelFrame(
-            self.right_frame, text=f"Speed trap {speed_trap_id}", padding=10)
+            self.speed_frame_container, text=f"Speed trap {speed_trap_id}", padding=10)
         dash_frame.pack(side="top")
 
         speed_display.speed_label = ttk.Label(
@@ -292,7 +382,7 @@ class TrainController:
         track_control = TrackControl(track_id, self.forward_message)
         self.controls[track_id] = track_control
 
-        track_frame = ttk.LabelFrame(self.left_frame, padding=10)
+        track_frame = ttk.LabelFrame(self.layout_content_frame, padding=10)
         track_frame.pack(fill="x", padx=10, pady=5)
 
         dash_frame = ttk.LabelFrame(
@@ -343,7 +433,7 @@ class TrainController:
         if self.layout.diagram_data is None:
             return
         try:
-            self.canvas = tk.Canvas(self.left_frame, width=600, height=300)
+            self.canvas = tk.Canvas(self.layout_content_frame, width=600, height=300)
             segments: list = self.layout.diagram_data.get("segments")
             for s in segments:
                 if s["shape"] == "straight":
@@ -680,12 +770,22 @@ if __name__ == "__main__":
         print(f"Error loading control_buttons.json: {e}")
         buttons = []
 
-    try:
-        from util import load_data_from_file
-        layout = load_data_from_file("data/layouts/layout01.json")
-    except Exception as e:
-        print(f"Error loading layout01.json: {e}")
+    layout = None
+    layout_path = None
+    for candidate in (load_last_layout_path(), DEFAULT_LAYOUT_PATH):
+        if not candidate:
+            continue
+        try:
+            layout = load_data_from_file(candidate)
+            layout_path = candidate
+            break
+        except Exception as e:
+            print(f"Error loading layout {candidate}: {e}")
+
+    if layout is None:
+        raise SystemExit("No layout could be loaded")
 
     root = tk.Tk()
-    app = TrainController(root, layout_data=layout, buttons_data=buttons)
+    app = TrainController(root, layout_data=layout, buttons_data=buttons,
+                          layout_path=layout_path)
     root.mainloop()
