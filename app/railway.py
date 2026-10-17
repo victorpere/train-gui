@@ -222,6 +222,10 @@ class Layout:
         self._points_by_node: dict[int, Point] = {}
         self._insulated_joints: set[tuple[int, frozenset]] = set()
         self._node_locations: dict[int, tuple] = {}
+        self._sensor_blocks: dict[int, list[int]] = {}
+        # Block a train is leaving while its sensor is on, freed when the sensor goes off
+        self._leaving_block: dict[int, set[int]] = {}
+        self._segment_blocks: dict[int, int] = {}
         # Lets points switch without a serial connection
         self.test_mode = False
 
@@ -293,6 +297,15 @@ class Layout:
                               sensor_ids=sorted(sensor_nodes[node] for node in touched_nodes if node in sensor_nodes))
                 self.components[DeviceType.BLOCK.name][block.id] = block
 
+            self._sensor_blocks = {}
+            self._leaving_block = {}
+            self._segment_blocks = {}
+            for block in self.components[DeviceType.BLOCK.name].values():
+                for segment_id in block.segment_ids:
+                    self._segment_blocks[segment_id] = block.id
+                for sensor_id in block.sensor_ids:
+                    self._sensor_blocks.setdefault(sensor_id, []).append(block.id)
+
             self._points_by_node = {}
             for point_data in points:
                 point = Point(point_data, layout=self, cb=self._on_component_event)
@@ -354,6 +367,10 @@ class Layout:
     def _joined_at_node(self, node: int, segment_id: int, other_id: int) -> bool:
         if (node, frozenset((segment_id, other_id))) in self._insulated_joints:
             return False
+        return self._point_allows(node, segment_id, other_id)
+
+    def _point_allows(self, node: int, segment_id: int, other_id: int) -> bool:
+        """Whether a point (if any) at the node connects the two segments in its current direction"""
         point = self._points_by_node.get(node)
         if point is None:
             return True
@@ -442,7 +459,51 @@ class Layout:
                 print("Layout._on_component_event exception:")
                 print(str(exc))
 
+        if message.message_type == MessageType.SET and message.device_type == DeviceType.SENSOR:
+            self._update_blocks_from_sensor(message.device_id)
+
         return True, ""
+
+    def _update_blocks_from_sensor(self, sensor_id: int):
+        """A train over a sensor occupies the blocks on both sides of it. When the sensor goes off,
+        the block the train came from is freed. The track voltage gives the direction of travel;
+        without it, the block the train came from is only known if it was the only one occupied."""
+        blocks: dict[int, Block] = self.components[DeviceType.BLOCK.name]
+        adjacent_ids = set(self._sensor_blocks.get(sensor_id, []))
+        sensor: Sensor = self.components[DeviceType.SENSOR.name][sensor_id]
+        if sensor.on:
+            travel = self._blocks_along_travel(sensor.node)
+            if travel is None:
+                occupied = {block_id for block_id in adjacent_ids if blocks[block_id].occupied}
+                leaving = occupied if len(adjacent_ids) > 1 and len(occupied) == 1 else set()
+                entering = adjacent_ids - leaving
+            else:
+                entering, leaving = travel
+            self._leaving_block[sensor_id] = leaving - entering
+            for block_id in entering | leaving:
+                blocks[block_id].occupied = True
+        else:
+            for block_id in self._leaving_block.pop(sensor_id, set()):
+                blocks[block_id].occupied = False
+
+    def _blocks_along_travel(self, node: int) -> tuple[set[int], set[int]] | None:
+        """(entering, leaving) block ids for a train passing the node, or None if its direction is unknown"""
+        touching = set(self._node_segments.get(node, []))
+        directions = set()
+        for track_id, segment_ids in self.electrified_segments().items():
+            track: Track = self.components[DeviceType.TARGET_VOLTAGE.name][track_id]
+            if track.travel_direction != 0 and touching.intersection(segment_ids):
+                directions.add(track.travel_direction)
+        if len(directions) != 1:
+            return None
+
+        arrive_at = 1 if directions.pop() > 0 else 0
+        arriving = [s for s in touching if self._segment_nodes[s][arrive_at] == node]
+        departing = [s for s in touching if self._segment_nodes[s][1 - arrive_at] == node]
+        passes = [(a, d) for a in arriving for d in departing if self._point_allows(node, a, d)]
+        if not passes:
+            return None
+        return {self._segment_blocks[d] for _, d in passes}, {self._segment_blocks[a] for a, _ in passes}
 
 
 class Track:
@@ -455,6 +516,8 @@ class Track:
         self._actual_voltage = 0
         self._cb = cb
         self.feeder_segment_id = feeder_segment_id
+        # Positive voltage moves trains along segments from -> to; kept while coasting to a stop
+        self.travel_direction = 0
 
     @property
     def actual_direction(self):
@@ -479,6 +542,8 @@ class Track:
 
         try:
             self._target_voltage = voltage
+            if voltage != 0:
+                self.travel_direction = 1 if voltage > 0 else -1
             message = Message(
                 message_type=MessageType.SET,
                 device_type=DeviceType.TARGET_VOLTAGE,
@@ -493,6 +558,8 @@ class Track:
     def process_message(self, message: Message) -> Tuple[bool, str]:
         if message.message_type == MessageType.SET and message.device_type == DeviceType.ACTUAL_VOLTAGE:
             self._actual_voltage = message.value
+            if message.value != 0:
+                self.travel_direction = 1 if message.value > 0 else -1
             return self._cb(message)
 
         if message.message_type == MessageType.SET and message.device_type == DeviceType.TARGET_VOLTAGE:

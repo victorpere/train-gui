@@ -449,3 +449,71 @@ def test_validate_layout_sensor_and_block_problems():
     assert any("sensor 4: diagram location is no longer supported" in e for e in errors)
     assert any("block 2: no such block" in e for e in errors)
     assert any("node 1 is at (10, 0) and (11, 0)" in e for e in errors)
+
+
+def test_sensor_events_move_occupancy_between_blocks(fake_factory):
+    layout = Layout(Communicator(serial_factory=fake_factory, time_to_initialize=0))
+    layout.load(layout_data)
+    blocks = layout.components[DeviceType.BLOCK.name]
+    events = []
+    layout.add_listener(lambda name, value: events.append(value) if name == "component" else None)
+
+    def set_sensor(value):
+        ok, msg = layout.command(Message(
+            message_type=MessageType.SET, device_type=DeviceType.SENSOR, device_id=1, value=value))
+        assert ok, msg
+
+    # block 3 starts occupied, block 1 free
+    set_sensor(1)
+    assert blocks[1].occupied and blocks[3].occupied
+    set_sensor(0)
+    assert blocks[1].occupied and not blocks[3].occupied
+    assert [(e.device_type, e.device_id, e.value) for e in events if e.device_type == DeviceType.BLOCK] == [
+        (DeviceType.BLOCK, 1, 1), (DeviceType.BLOCK, 3, 0)]
+
+    # both blocks occupied before the event: direction unknown, nothing is freed
+    blocks[3].occupied = True
+    set_sensor(1)
+    set_sensor(0)
+    assert blocks[1].occupied and blocks[3].occupied
+
+
+def _block_setup(fake_factory):
+    layout = Layout(Communicator(serial_factory=fake_factory, time_to_initialize=0))
+    layout.load(layout_data)
+
+    def set_actual_voltage(value):
+        ok, msg = layout.command(Message(
+            message_type=MessageType.SET, device_type=DeviceType.ACTUAL_VOLTAGE, device_id=1, value=value))
+        assert ok, msg
+
+    def set_sensor(value):
+        ok, msg = layout.command(Message(
+            message_type=MessageType.SET, device_type=DeviceType.SENSOR, device_id=1, value=value))
+        assert ok, msg
+
+    return layout.components[DeviceType.BLOCK.name], set_actual_voltage, set_sensor
+
+
+def test_track_direction_resolves_which_block_is_left(fake_factory):
+    blocks, set_actual_voltage, set_sensor = _block_setup(fake_factory)
+    # sensor at node 2 joins segment 2 (block 1) and segment 3 (block 3)
+    blocks[1].occupied = True
+    blocks[3].occupied = True
+
+    set_actual_voltage(10)  # along segments: from block 1 into block 3
+    set_sensor(1)
+    set_sensor(0)
+    assert not blocks[1].occupied and blocks[3].occupied
+
+    blocks[1].occupied = True
+    set_actual_voltage(0)  # coasting to a stop keeps the direction
+    set_sensor(1)
+    set_sensor(0)
+    assert not blocks[1].occupied and blocks[3].occupied
+
+    blocks[1].occupied = True
+    set_actual_voltage(-10)  # against segments: from block 3 into block 1
+    set_sensor(1)
+    set_sensor(0)
+    assert blocks[1].occupied and not blocks[3].occupied
