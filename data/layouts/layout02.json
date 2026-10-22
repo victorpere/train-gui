@@ -1,188 +1,249 @@
 {
-  "name": "Layout 1",
-  "description": "Simple loop",
-  "scale": 150.0,
-  "segments": [
-    {
-      "id": 1,
-      "from": 0,
-      "to": 1
-    },
-    {
-      "id": 8,
-      "from": 1,
-      "to": 2
-    },
-    {
-      "id": 9,
-      "from": 2,
-      "to": 3
-    },
-    {
-      "id": 2,
-      "from": 3,
-      "to": 4
-    },
-    {
-      "id": 3,
-      "from": 4,
-      "to": 5
-    },
-    {
-      "id": 4,
-      "from": 5,
-      "to": 0
-    },
-    {
-      "id": 5,
-      "from": 1,
-      "to": 6
-    },
-    {
-      "id": 10,
-      "from": 6,
-      "to": 9
-    },
-    {
-      "id": 11,
-      "from": 9,
-      "to": 10
-    },
-    {
-      "id": 12,
-      "from": 10,
-      "to": 12
-    }
-  ],
-  "insulated_joints": [
-    {
-      "node": 4,
-      "segments": [3, 2]
-    }
-  ],
-  "diagram": {
+    "name": "Layout 2",
+    "description": "Loop with one siding",
+    "scale": 150,
     "segments": [
-      {
-        "id": 1,
-        "shape": "straight",
-        "start_point": [150, 50],
-        "end_point": [200, 50],
-        "feeder": true
-      },
-      {
-        "id": 8,
-        "shape": "straight",
-        "start_point": [200, 50],
-        "end_point": [250, 50]
-      },
-      {
-        "id": 9,
-        "shape": "straight",
-        "start_point": [250, 50],
-        "end_point": [450, 50]
-      },
-      {
-        "id": 2,
-        "shape": "curve",
-        "start_point": [450, 50],
-        "end_point": [450, 250],
-        "start_angle": 90,
-        "extent": -180
-      },
-      {
-        "id": 3,
-        "shape": "straight",
-        "start_point": [450, 250],
-        "end_point": [150, 250]
-      },
-      {
-        "id": 4,
-        "shape": "curve",
-        "start_point": [150, 250],
-        "end_point": [150, 50],
-        "start_angle": -90,
-        "extent": -180
-      },
-      {
-        "id": 5,
-        "shape": "curve",
-        "start_point": [200, 50],
-        "end_point": [250, 60],
-        "start_angle": 90,
-        "extent": -15
-      },
-      {
-        "id": 10,
-        "shape": "straight",
-        "start_point": [250, 60],
-        "end_point": [300, 80]
-      },
-      {
-        "id": 11,
-        "shape": "straight",
-        "start_point": [300, 80],
-        "end_point": [340, 96]
-      },
-      {
-        "id": 12,
-        "shape": "straight",
-        "start_point": [340, 96],
-        "end_point": [500, 158]
-      }
+        {
+            "id": 1,
+            "from": 0,
+            "to": 1
+        },
+        {
+            "id": 8,
+            "from": 1,
+            "to": 2
+        },
+        {
+            "id": 9,
+            "from": 2,
+            "to": 3
+        },
+        {
+            "id": 2,
+            "from": 3,
+            "to": 4
+        },
+        {
+            "id": 3,
+            "from": 4,
+            "to": 5
+        },
+        {
+            "id": 4,
+            "from": 5,
+            "to": 0
+        },
+        {
+            "id": 5,
+            "from": 1,
+            "to": 6
+        },
+        {
+            "id": 10,
+            "from": 6,
+            "to": 9
+        },
+        {
+            "id": 11,
+            "from": 9,
+            "to": 10
+        },
+        {
+            "id": 12,
+            "from": 10,
+            "to": 12
+        }
+    ],
+    "insulated_joints": [
+        {
+            "node": 4,
+            "segments": [
+                3,
+                2
+            ]
+        }
+    ],
+    "diagram": {
+        "segments": [
+            {
+                "id": 1,
+                "shape": "straight",
+                "start_point": [
+                    150,
+                    50
+                ],
+                "end_point": [
+                    200,
+                    50
+                ],
+                "feeder": true
+            },
+            {
+                "id": 8,
+                "shape": "straight",
+                "start_point": [
+                    200,
+                    50
+                ],
+                "end_point": [
+                    250,
+                    50
+                ]
+            },
+            {
+                "id": 9,
+                "shape": "straight",
+                "start_point": [
+                    250,
+                    50
+                ],
+                "end_point": [
+                    450,
+                    50
+                ]
+            },
+            {
+                "id": 2,
+                "shape": "curve",
+                "start_point": [
+                    450,
+                    50
+                ],
+                "end_point": [
+                    450,
+                    250
+                ],
+                "start_angle": 90,
+                "extent": -180
+            },
+            {
+                "id": 3,
+                "shape": "straight",
+                "start_point": [
+                    450,
+                    250
+                ],
+                "end_point": [
+                    150,
+                    250
+                ]
+            },
+            {
+                "id": 4,
+                "shape": "curve",
+                "start_point": [
+                    150,
+                    250
+                ],
+                "end_point": [
+                    150,
+                    50
+                ],
+                "start_angle": -90,
+                "extent": -180
+            },
+            {
+                "id": 5,
+                "shape": "curve",
+                "start_point": [
+                    200,
+                    50
+                ],
+                "end_point": [
+                    250,
+                    60
+                ],
+                "start_angle": 90,
+                "extent": -15
+            },
+            {
+                "id": 10,
+                "shape": "straight",
+                "start_point": [
+                    250,
+                    60
+                ],
+                "end_point": [
+                    300,
+                    80
+                ]
+            },
+            {
+                "id": 11,
+                "shape": "straight",
+                "start_point": [
+                    300,
+                    80
+                ],
+                "end_point": [
+                    340,
+                    96
+                ]
+            },
+            {
+                "id": 12,
+                "shape": "straight",
+                "start_point": [
+                    340,
+                    96
+                ],
+                "end_point": [
+                    500,
+                    158
+                ]
+            }
+        ]
+    },
+    "tracks": [
+        {
+            "id": 0,
+            "feeder_segment_id": 1
+        }
+    ],
+    "blocks": [],
+    "sensors": [
+        {
+            "id": 0,
+            "node": 3
+        },
+        {
+            "id": 3,
+            "node": 4
+        },
+        {
+            "id": 2,
+            "node": 0
+        },
+        {
+            "id": 1,
+            "node": 9
+        }
+    ],
+    "points": [
+        {
+            "id": 0,
+            "node": 1,
+            "initial_direction": 0,
+            "direction_segments": [
+                8,
+                5
+            ]
+        }
+    ],
+    "speed_traps": [
+        {
+            "id": 0,
+            "track_id": 0,
+            "sensor_1_id": 0,
+            "sensor_2_id": 0,
+            "distance": 2836.02
+        },
+        {
+            "id": 1,
+            "track_id": 0,
+            "sensor_1_id": 0,
+            "sensor_2_id": 3,
+            "distance": 860.01
+        }
     ]
-  },
-  "tracks": [
-    {
-      "id": 0,
-      "feeder_segment_id": 1
-    }
-  ],
-  "blocks": [
-    {
-      "id": 12,
-      "occupied": true
-    }
-  ],
-  "sensors": [
-    {
-      "id": 0,
-      "node": 3
-    },
-    {
-      "id": 1,
-      "node": 10
-    },
-    {
-      "id": 3,
-      "node": 4
-    },
-    {
-      "id": 2,
-      "node": 0
-    }
-  ],
-  "points": [
-    {
-      "id": 0,
-      "node": 1,
-      "initial_direction": 0,
-      "direction_segments": [8, 5]
-    }
-  ],
-  "speed_traps": [
-    {
-      "id": 0,
-      "track_id": 0,
-      "sensor_1_id": 0,
-      "sensor_2_id": 0,
-      "distance": 2836.02
-    },
-    {
-      "id": 1,
-      "track_id": 0,
-      "sensor_1_id": 0,
-      "sensor_2_id": 3,
-      "distance": 860.01
-    }
-  ]
 }
