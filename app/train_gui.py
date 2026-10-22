@@ -7,7 +7,7 @@ from tkinter import filedialog as fd
 from tkinter.ttk import Button
 import tkinter.font as tkFont
 from scenario import ScenarioRunner, ScenarioState, ScenarioStatus
-from railway import Layout, Message, MessageType, DeviceType, Sensor, Point
+from railway import Layout, Message, MessageType, DeviceType, Sensor, Point, Block
 from communication import Communicator
 from util import load_data_from_file, save_data_to_file, load_canvas_size
 import diagram_helper
@@ -482,7 +482,12 @@ class TrainController:
                         *diagram_helper.curve_to_line_points(s), smooth=True,
                         width=width, fill=color, tags="block"))
             self.block_items[block.id] = items
+            for item in items:
+                self.canvas.tag_bind(item, '<Button-1>', lambda _event, block=block: self._toggle_block(block))
         self.canvas.tag_lower("block")
+
+    def _toggle_block(self, block: Block):
+        block.occupied = not block.occupied
 
     def _block_color(self, occupied: bool) -> str:
         return self.diagram_config.block_occupied_color if occupied else self.diagram_config.block_unoccupied_color
