@@ -64,6 +64,26 @@ def test_sensors_split_blocks_and_occupancy_follows_them():
     assert doc.problems() == []
 
 
+def test_sensor_id_can_be_assigned_manually():
+    doc = build_y_layout()
+    first, second = doc.node_at((300, 100)), doc.node_at((200, 100))
+    doc.add_sensor(first)
+    doc.add_sensor(second)
+    track_id = doc.add_track()
+    doc.set_speed_trap(None, track_id, 0, 1, 50)
+
+    doc.set_sensor_id(first, 7)
+    assert doc.sensor_at(first) == 7
+    assert doc.data["speed_traps"][0]["sensor_1_id"] == 7
+
+    with pytest.raises(LayoutError):
+        doc.set_sensor_id(first, 1)  # used by the other sensor
+    with pytest.raises(LayoutError):
+        doc.set_sensor_id(first, 16)
+    with pytest.raises(LayoutError):
+        doc.set_sensor_id(doc.node_at((400, 100)), 3)  # no sensor there
+
+
 def test_point_needs_three_segments_and_is_dropped_when_it_breaks():
     doc = build_y_layout()
     junction = doc.node_at((200, 100))

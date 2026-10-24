@@ -216,6 +216,20 @@ class LayoutDocument:
         self.data["sensors"] = [s for s in self.data["sensors"] if s.get("node") != node]
         self._cleanup()
 
+    def set_sensor_id(self, node: int, sensor_id: int):
+        sensor = next((s for s in self.data["sensors"] if s.get("node") == node), None)
+        if sensor is None:
+            raise LayoutError(f"Node {node} has no sensor")
+        if not 0 <= sensor_id <= MAX_DEVICE_ID:
+            raise LayoutError(f"Sensor id must be between 0 and {MAX_DEVICE_ID}")
+        if sensor_id != sensor["id"] and _find(self.data["sensors"], sensor_id) is not None:
+            raise LayoutError(f"Sensor {sensor_id} is already used by another node")
+        for trap in self.data["speed_traps"]:
+            for key in ("sensor_1_id", "sensor_2_id"):
+                if trap.get(key) == sensor["id"]:
+                    trap[key] = sensor_id
+        sensor["id"] = sensor_id
+
     def point_at(self, node: int) -> dict | None:
         return next((p for p in self.data["points"] if p.get("node") == node), None)
 
@@ -449,7 +463,7 @@ class LayoutEditor:
         toolbar = ttk.Frame(left, padding=4)
         toolbar.pack(fill="x")
         ttk.Button(toolbar, text="New", command=self.new).pack(side="left", padx=(0, 4))
-        ttk.Button(toolbar, text="Open JSON...", command=self.open).pack(side="left", padx=(0, 4))
+        ttk.Button(toolbar, text="Open...", command=self.open).pack(side="left", padx=(0, 4))
         ttk.Button(toolbar, text="Save", command=self.save).pack(side="left", padx=(0, 10))
         for label, value in (("Select / move", "select"), ("Straight", "straight"), ("Curve", "curve")):
             ttk.Radiobutton(toolbar, text=label, value=value, variable=self.tool,
@@ -761,6 +775,13 @@ class LayoutEditor:
             frame, text="Sensor" + (f" (S{sensor_id})" if sensor_id is not None else ""), variable=sensor_var,
             command=lambda: self._edit(self.doc.add_sensor if sensor_var.get() else self.doc.remove_sensor, node)
         ).pack(anchor="w", pady=(10, 4))
+        if sensor_id is not None:
+            id_row = ttk.Frame(frame)
+            id_row.pack(anchor="w")
+            ttk.Label(id_row, text="Sensor id").pack(side="left")
+            id_var = tk.StringVar(value=str(sensor_id))
+            ttk.Entry(id_row, textvariable=id_var, width=5).pack(side="left", padx=6)
+            ttk.Button(id_row, text="Set", command=lambda: self._apply_sensor_id(node, id_var.get())).pack(side="left")
 
         point = self.doc.point_at(node)
         if point:
@@ -787,6 +808,14 @@ class LayoutEditor:
         if joints:
             ttk.Button(frame, text="Remove joints",
                        command=lambda: self._edit(self.doc.remove_joints, node)).pack(anchor="w", pady=2)
+
+    def _apply_sensor_id(self, node: int, text: str):
+        try:
+            sensor_id = int(text)
+        except ValueError:
+            messagebox.showerror("Layout editor", "Sensor id must be a whole number", parent=self.root)
+            return
+        self._edit(self.doc.set_sensor_id, node, sensor_id)
 
     def _apply_curve(self, segment_id: int, angle_text: str, extent_text: str):
         try:
