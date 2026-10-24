@@ -1,63 +1,49 @@
 import math
 
+CURVE_EXTENTS = (15, 30, 45, 90, 180)  # allowed arc sizes in degrees, either direction
 
-def curve_to_tkinter_arc(arc):
-    """Convert a {start_point, end_point, start_angle, extent} arc definition into
-    tkinter Canvas.create_arc bounding-box/start/extent parameters.
+
+def curve_geometry(start_point, end_point, extent: float) -> dict:
+    """Circle of the arc running from start_point to end_point through `extent` degrees.
+    A positive extent is counter-clockwise on the screen. Returns the screen centre, the radius and
+    the tkinter start angle (degrees, counter-clockwise from 3 o'clock).
     """
-    x1, y1 = arc["start_point"][0], arc["start_point"][1]
-    x2, y2 = arc["end_point"][0], arc["end_point"][1]
-    start_angle = arc["start_angle"]
-    extent = arc["extent"]
-
-    a1 = math.radians(start_angle)
-    a2 = math.radians(start_angle + extent)
-    cos1, sin1 = math.cos(a1), math.sin(a1)
-    cos2, sin2 = math.cos(a2), math.sin(a2)
-
-    # Solve x = cx + rx*cos(theta), y = cy - ry*sin(theta) for each axis independently,
-    # since the two points don't necessarily lie on a circle (rx may differ from ry).
-    dcos = cos1 - cos2
-    dsin = sin2 - sin1
-    rx = (x1 - x2) / dcos if not math.isclose(dcos, 0, abs_tol=1e-9) else None
-    ry = (y1 - y2) / dsin if not math.isclose(dsin, 0, abs_tol=1e-9) else None
-
-    if rx is None and ry is None:
-        raise ValueError("extent must not be a multiple of 360 degrees")
-    # If one axis doesn't constrain its radius (points share that coordinate), mirror the other.
-    rx = ry if rx is None else rx
-    ry = rx if ry is None else ry
-
-    cx = x1 - rx * cos1
-    cy = y1 + ry * sin1
-
-    return {
-        "x1": cx - rx,
-        "y1": cy - ry,
-        "x2": cx + rx,
-        "y2": cy + ry,
-        "start": start_angle,
-        "extent": extent,
-    }
+    if not extent or abs(extent) >= 360:
+        raise ValueError("extent must be non-zero and less than 360 degrees")
+    # Work with y pointing up, like the tkinter angles
+    x1, y1 = start_point[0], -start_point[1]
+    x2, y2 = end_point[0], -end_point[1]
+    chord = math.hypot(x2 - x1, y2 - y1)
+    if chord == 0:
+        raise ValueError("a curve needs two distinct end points")
+    half = math.radians(abs(extent)) / 2
+    radius = chord / (2 * math.sin(half))
+    ux, uy = (x2 - x1) / chord, (y2 - y1) / chord
+    # The centre is left of the chord for counter-clockwise arcs and right of it for clockwise ones
+    offset = math.copysign(radius * math.cos(half), extent)
+    cx = (x1 + x2) / 2 - uy * offset
+    cy = (y1 + y2) / 2 + ux * offset
+    return {"center": (cx, -cy), "radius": radius, "start_angle": math.degrees(math.atan2(y1 - cy, x1 - cx))}
 
 
-def curve_to_line_points(arc, step_degrees=15):
+def curve_to_line_points(start_point, end_point, extent: float, step_degrees=15):
     """Flat x,y list of points along a curve, for canvas.create_line(..., smooth=True)."""
-    p = curve_to_tkinter_arc(arc)
-    cx, cy = (p["x1"] + p["x2"]) / 2, (p["y1"] + p["y2"]) / 2
-    rx, ry = (p["x2"] - p["x1"]) / 2, (p["y2"] - p["y1"]) / 2
-    count = max(3, math.ceil(abs(p["extent"]) / step_degrees) + 1)
+    geometry = curve_geometry(start_point, end_point, extent)
+    cx, cy = geometry["center"]
+    count = max(3, math.ceil(abs(extent) / step_degrees) + 1)
     points = []
     for i in range(count):
-        angle = math.radians(p["start"] + p["extent"] * i / (count - 1))
-        points += [cx + rx * math.cos(angle), cy - ry * math.sin(angle)]
+        angle = math.radians(geometry["start_angle"] + extent * i / (count - 1))
+        points += [cx + geometry["radius"] * math.cos(angle), cy - geometry["radius"] * math.sin(angle)]
     return points
 
 
-def mid_point(segment):
-    x = (segment["start_point"][0] + segment["end_point"][0]) / 2
-    y = (segment["start_point"][1] + segment["end_point"][1]) / 2
-    return x, y
+def segment_line_points(segment: dict, node_positions: dict) -> list:
+    """Flat x,y list of points along a layout segment, drawn from its `from` node to its `to` node."""
+    start, end = node_positions[segment["from"]], node_positions[segment["to"]]
+    if segment.get("shape", "straight") == "curve":
+        return curve_to_line_points(start, end, segment["extent"])
+    return [*start, *end]
 
 
 def feeder_symbol(cx:float, cy:float):
@@ -108,7 +94,7 @@ def round_symbol(cx: float, cy: float, diameter: float):
     return x1, y1, x2, y2
 
 
-def center_point(segment: dict):
-    segment_center_x = (segment["start_point"][0] + segment["end_point"][0]) / 2
-    segment_center_y = (segment["start_point"][1] + segment["end_point"][1]) / 2
-    return segment_center_x, segment_center_y
+def center_point(segment: dict, node_positions: dict):
+    """Midpoint between a segment's end nodes"""
+    start, end = node_positions[segment["from"]], node_positions[segment["to"]]
+    return (start[0] + end[0]) / 2, (start[1] + end[1]) / 2

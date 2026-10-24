@@ -3,6 +3,7 @@ from pydantic import BaseModel
 from typing import List, Tuple, Protocol, overload
 from enum import Enum
 from communication import Communicator
+from diagram_helper import CURVE_EXTENTS
 
 
 class MessageType(Enum):
@@ -71,21 +72,6 @@ def derive_blocks(segment_nodes: dict[int, tuple], sensor_nodes: set) -> dict[in
     return blocks
 
 
-def derive_node_locations(segment_nodes: dict[int, tuple], diagram_segments: list | None) -> tuple[dict, list[str]]:
-    """Node coordinates taken from the diagram segment end points, plus any disagreements between them"""
-    locations: dict[int, tuple] = {}
-    conflicts: list[str] = []
-    for segment in diagram_segments or []:
-        nodes = segment_nodes.get(segment.get("id"))
-        if nodes is None:
-            continue
-        for node, point in zip(nodes, (segment.get("start_point"), segment.get("end_point"))):
-            point = tuple(point)
-            if locations.setdefault(node, point) != point:
-                conflicts.append(f"node {node} is at {locations[node]} and {point} (segment {segment.get('id')})")
-    return locations, conflicts
-
-
 def validate_layout(layout_data: dict) -> list[str]:
     """Returns a list of problems found in a layout definition (empty if valid)"""
     errors: list[str] = []
@@ -102,23 +88,44 @@ def validate_layout(layout_data: dict) -> list[str]:
                 ids.add(item_id)
         return ids
 
+    if "diagram" in layout_data:
+        errors.append("diagram: no longer supported, define nodes (with x and y) and segments at the layout root")
+
+    nodes = layout_data.get("nodes", [])
+    node_ids = collect_ids("nodes", nodes)
+    node_at: dict[tuple, int] = {}
+    for node in nodes:
+        x, y = node.get("x"), node.get("y")
+        if not all(isinstance(value, (int, float)) and not isinstance(value, bool) for value in (x, y)):
+            errors.append(f"node {node.get('id')}: x and y must be numbers")
+        elif node_at.setdefault((x, y), node.get("id")) != node.get("id"):
+            errors.append(f"node {node.get('id')}: same position as node {node_at[(x, y)]}")
+
     segments = layout_data.get("segments", [])
     segment_ids = collect_ids("segments", segments)
     segment_nodes: dict[int, tuple] = {}
     for segment in segments:
-        nodes = (segment.get("from"), segment.get("to"))
-        if not all(isinstance(node, int) for node in nodes):
-            errors.append(f"segment {segment.get('id')}: from and to must be integer node ids")
+        where = f"segment {segment.get('id')}"
+        ends = (segment.get("from"), segment.get("to"))
+        if not all(isinstance(end, int) for end in ends):
+            errors.append(f"{where}: from and to must be integer node ids")
+        elif any(end not in node_ids for end in ends):
+            errors.append(f"{where}: unknown node {next(end for end in ends if end not in node_ids)}")
+        elif ends[0] == ends[1]:
+            errors.append(f"{where}: from and to must be different nodes")
         else:
-            segment_nodes[segment.get("id")] = nodes
+            segment_nodes[segment.get("id")] = ends
 
-    diagram_segments = (layout_data.get("diagram") or {}).get("segments")
-    if diagram_segments is not None:
-        drawn_ids = collect_ids("diagram.segments", diagram_segments)
-        for segment_id in sorted(drawn_ids - segment_ids):
-            errors.append(f"diagram.segments: segment {segment_id} is not defined in segments")
-        for segment_id in sorted(segment_ids - drawn_ids):
-            errors.append(f"segments: segment {segment_id} is missing from diagram.segments")
+        shape, extent = segment.get("shape", "straight"), segment.get("extent")
+        if shape == "straight":
+            if extent is not None:
+                errors.append(f"{where}: extent only applies to curves")
+        elif shape == "curve":
+            if not isinstance(extent, (int, float)) or abs(extent) not in CURVE_EXTENTS:
+                errors.append(f"{where}: curve extent must be one of {list(CURVE_EXTENTS)} "
+                              f"(negative for clockwise), found {extent}")
+        else:
+            errors.append(f"{where}: shape must be straight or curve, found {shape}")
 
     track_ids = collect_ids("tracks", layout_data.get("tracks", []))
     collect_ids("blocks", layout_data.get("blocks", []))
@@ -127,22 +134,18 @@ def validate_layout(layout_data: dict) -> list[str]:
     points = layout_data.get("points", [])
     collect_ids("points", points)
 
-    known_nodes = {node for nodes in segment_nodes.values() for node in nodes}
     sensor_nodes: dict[int, int] = {}
     for sensor in layout_data.get("sensors", []):
         where = f"sensor {sensor.get('id')}"
         if "diagram" in sensor:
             errors.append(f"{where}: diagram location is no longer supported, define the sensor's node")
         node = sensor.get("node")
-        if node not in known_nodes:
+        if node not in node_ids:
             errors.append(f"{where}: unknown node {node}")
         elif node in sensor_nodes.values():
             errors.append(f"{where}: node {node} already has a sensor")
         else:
             sensor_nodes[sensor.get("id")] = node
-
-    _, conflicts = derive_node_locations(segment_nodes, diagram_segments)
-    errors.extend(f"diagram.segments: {conflict}" for conflict in conflicts)
 
     block_ids = derive_blocks(segment_nodes, set(sensor_nodes.values()))
     for block in layout_data.get("blocks", []):
@@ -216,12 +219,12 @@ class Layout:
         self.description = ""
         self._listeners: List[Callback] = []
         self._speed_trap_listeners: List[Callback] = []
-        self.diagram_data = None
+        self.segments: dict[int, dict] = {}
         self._node_segments: dict[int, list[int]] = {}
         self._segment_nodes: dict[int, tuple[int, int]] = {}
         self._points_by_node: dict[int, Point] = {}
         self._insulated_joints: set[tuple[int, frozenset]] = set()
-        self._node_locations: dict[int, tuple] = {}
+        self.node_locations: dict[int, tuple] = {}
         self._sensor_blocks: dict[int, list[int]] = {}
         # Block a train is leaving while its sensor is on, freed when the sensor goes off
         self._leaving_block: dict[int, set[int]] = {}
@@ -244,7 +247,6 @@ class Layout:
             self.name = layout_data.get("name", "n/a")
             self.description = layout_data.get("description", "n/a")
             self.scale: float = layout_data.get("scale", 0)
-            self.diagram_data: dict = layout_data.get("diagram")
             tracks = layout_data.get("tracks", [])
             blocks = layout_data.get("blocks", [])
             sensors = layout_data.get("sensors", [])
@@ -276,7 +278,8 @@ class Layout:
                 self._speed_trap_listeners.append(speed_trap.receive_component_event)
                 self.components[DeviceType.SPEED.name][speed_trap.id] = speed_trap
 
-            self._segment_nodes = {s["id"]: (s["from"], s["to"]) for s in layout_data.get("segments", [])}
+            self.segments = {s["id"]: s for s in layout_data.get("segments", [])}
+            self._segment_nodes = {s_id: (s["from"], s["to"]) for s_id, s in self.segments.items()}
             self._node_segments = {}
             for segment_id, nodes in self._segment_nodes.items():
                 for node in nodes:
@@ -285,8 +288,7 @@ class Layout:
             self._insulated_joints = {(joint["node"], frozenset(joint["segments"]))
                                       for joint in layout_data.get("insulated_joints", [])}
 
-            self._node_locations, _ = derive_node_locations(
-                self._segment_nodes, (self.diagram_data or {}).get("segments"))
+            self.node_locations = {n["id"]: (n["x"], n["y"]) for n in layout_data.get("nodes", [])}
 
             sensor_nodes = {sensor.node: sensor.id for sensor in self.components[DeviceType.SENSOR.name].values()}
             initially_occupied = {b["id"]: b.get("occupied", False) for b in blocks}
@@ -324,8 +326,8 @@ class Layout:
         self._listeners.append(cb)
 
     def node_location(self, node: int) -> tuple | None:
-        """Diagram coordinates of a node, if the layout has a diagram"""
-        return self._node_locations.get(node)
+        """Diagram coordinates of a node"""
+        return self.node_locations.get(node)
 
     def command(self, message: Message) -> Tuple[bool, str]:
         """Processes command to component"""

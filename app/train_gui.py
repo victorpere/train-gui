@@ -440,47 +440,36 @@ class TrainController:
         track_control.message_label.pack()
 
     def _build_diagram(self):
-        if self.layout.diagram_data is None:
-            return
         try:
             self.canvas = tk.Canvas(self.layout_content_frame, width=self.diagram_config.canvas_width,
                                     height=self.diagram_config.canvas_height)
-            segments: list = self.layout.diagram_data.get("segments")
-            for s in segments:
-                if s["shape"] == "straight":
-                    segment = self.canvas.create_line(
-                        s["start_point"][0], s["start_point"][1], s["end_point"][0], s["end_point"][1], width=self.diagram_config.line_width)
-                    self.segments[s["id"]] = "straight", segment
-                elif s["shape"] == "curve":
-                    segment = self.canvas.create_line(
-                        *diagram_helper.curve_to_line_points(s), smooth=True, splinesteps=48, width=self.diagram_config.line_width)
-                    self.segments[s["id"]] = "curve", segment
-                # self.canvas.create_text(s["start_point"][0], s["start_point"][1], text=str(s["id"]), fill="red")
-                if s.get("feeder") == True:
-                    segment_center = diagram_helper.center_point(s)
+            for segment_id, s in self.layout.segments.items():
+                points = diagram_helper.segment_line_points(s, self.layout.node_locations)
+                smooth = s.get("shape", "straight") == "curve"
+                options = {"smooth": True, "splinesteps": 48} if smooth else {}
+                segment = self.canvas.create_line(*points, width=self.diagram_config.line_width, **options)
+                self.segments[segment_id] = ("curve" if smooth else "straight"), segment
+            for track in self.layout.components[DeviceType.TARGET_VOLTAGE.name].values():
+                feeder = self.layout.segments.get(track.feeder_segment_id)
+                if feeder is not None:
+                    segment_center = diagram_helper.center_point(feeder, self.layout.node_locations)
                     self.canvas.create_polygon(diagram_helper.feeder_symbol(
                         segment_center[0], segment_center[1]), fill=self.diagram_config.electrified_color, outline=self.diagram_config.symbol_outline_color, width=self.diagram_config.symbol_outline_width)
-                self.canvas.pack()
-            self._draw_blocks(segments)
+            self.canvas.pack()
+            self._draw_blocks()
         except Exception as exc:
             print(f"Error drawing diagram: {str(exc)}")
 
-    def _draw_blocks(self, diagram_segments: list):
-        segments_by_id = {s["id"]: s for s in diagram_segments}
+    def _draw_blocks(self):
         for block in self.layout.components[DeviceType.BLOCK.name].values():
             color = self._block_color(block.occupied)
             items = []
             for segment_id in block.segment_ids:
-                s = segments_by_id[segment_id]
-                width = self.diagram_config.block_width
-                if s["shape"] == "straight":
-                    items.append(self.canvas.create_line(
-                        s["start_point"][0], s["start_point"][1], s["end_point"][0], s["end_point"][1],
-                        width=width, fill=color, tags="block"))
-                elif s["shape"] == "curve":
-                    items.append(self.canvas.create_line(
-                        *diagram_helper.curve_to_line_points(s), smooth=True,
-                        width=width, fill=color, tags="block"))
+                s = self.layout.segments[segment_id]
+                points = diagram_helper.segment_line_points(s, self.layout.node_locations)
+                options = {"smooth": True} if s.get("shape", "straight") == "curve" else {}
+                items.append(self.canvas.create_line(
+                    *points, width=self.diagram_config.block_width, fill=color, tags="block", **options))
             self.block_items[block.id] = items
             for item in items:
                 self.canvas.tag_bind(item, '<Button-1>', lambda _event, block=block: self._toggle_block(block))

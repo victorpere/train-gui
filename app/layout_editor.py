@@ -10,7 +10,7 @@ import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
 import diagram_helper
-from railway import derive_blocks, derive_node_locations, validate_layout
+from railway import derive_blocks, validate_layout
 from util import load_canvas_size, load_data_from_file, save_data_to_file
 
 GRID = 10
@@ -23,7 +23,7 @@ INITIAL_DIRECTIONS = ["0 (primary route)", "1 (secondary route)"]
 TOOL_HINTS = {
     "select": "Click to select, drag a node to move it",
     "straight": "Click the start, then the end of the segment (Esc cancels)",
-    "curve": "Click the start, then the end of the curve, then adjust its angles (Esc cancels)",
+    "curve": "Click the start, then the end of the curve (Esc cancels)",
 }
 
 
@@ -36,9 +36,9 @@ def new_layout() -> dict:
         "name": "New layout",
         "description": "",
         "scale": 150.0,
+        "nodes": [],
         "segments": [],
         "insulated_joints": [],
-        "diagram": {"segments": []},
         "tracks": [],
         "blocks": [],
         "sensors": [],
@@ -73,19 +73,14 @@ def _grid_snap(point) -> tuple[int, int]:
 
 
 class LayoutDocument:
-    """An editable layout definition. Nodes are implicit: they exist where segments end,
-    at the coordinates of those ends."""
+    """An editable layout definition. Nodes are created where segments end and dropped when
+    no segment uses them any more."""
 
     def __init__(self, data: dict | None = None):
         self.data = new_layout() if data is None else data
         for key, empty in new_layout().items():
             if self.data.get(key) is None:
                 self.data[key] = empty
-        self.data["diagram"].setdefault("segments", [])
-
-    @property
-    def drawings(self) -> list:
-        return self.data["diagram"]["segments"]
 
     def problems(self) -> list[str]:
         try:
@@ -102,8 +97,7 @@ class LayoutDocument:
         return {s["id"]: (s["from"], s["to"]) for s in self.data["segments"]}
 
     def node_positions(self) -> dict[int, tuple]:
-        positions, _ = derive_node_locations(self.segment_nodes(), self.drawings)
-        return positions
+        return {n["id"]: (n["x"], n["y"]) for n in self.data["nodes"]}
 
     def segments_at(self, node: int) -> list[int]:
         return sorted(segment_id for segment_id, nodes in self.segment_nodes().items() if node in nodes)
@@ -120,28 +114,31 @@ class LayoutDocument:
         node = self.node_at(point)
         return self.node_positions()[node] if node is not None else _grid_snap(point)
 
-    def add_segment(self, start, end, shape: str = "straight", flipped: bool = False) -> int:
+    def add_segment(self, start, end, shape: str = "straight", flipped: bool = False, extent: int = 90) -> int:
         positions = self.node_positions()
         next_node = max(positions, default=-1) + 1
-        nodes, points = [], []
+        nodes, points, new_nodes = [], [], []
         for point in (start, end):
             node = self.node_at(point)
             if node is None:
                 node, next_node = next_node, next_node + 1
                 point = _grid_snap(point)
+                new_nodes.append({"id": node, "x": point[0], "y": point[1]})
             else:
                 point = positions[node]
             nodes.append(node)
-            points.append(list(point))
+            points.append(point)
         if nodes[0] == nodes[1] or math.dist(points[0], points[1]) < SNAP_DISTANCE:
             raise LayoutError("A segment needs two distinct end points")
+        if shape == "curve" and extent not in diagram_helper.CURVE_EXTENTS:
+            raise LayoutError(f"Curve extent must be one of {list(diagram_helper.CURVE_EXTENTS)}")
 
         segment_id = _free_id(self.data["segments"], 1)
-        drawing = {"id": segment_id, "shape": shape, "start_point": points[0], "end_point": points[1]}
+        segment = {"id": segment_id, "from": nodes[0], "to": nodes[1], "shape": shape}
         if shape == "curve":
-            drawing.update({"start_angle": 180, "extent": 90} if flipped else {"start_angle": 90, "extent": -90})
-        self.data["segments"].append({"id": segment_id, "from": nodes[0], "to": nodes[1]})
-        self.drawings.append(drawing)
+            segment["extent"] = extent if flipped else -extent
+        self.data["nodes"].extend(new_nodes)
+        self.data["segments"].append(segment)
         self._cleanup()
         return segment_id
 
@@ -149,7 +146,6 @@ class LayoutDocument:
         if _find(self.data["segments"], segment_id) is None:
             raise LayoutError(f"Unknown segment {segment_id}")
         self.data["segments"] = [s for s in self.data["segments"] if s["id"] != segment_id]
-        self.data["diagram"]["segments"] = [d for d in self.drawings if d["id"] != segment_id]
         for track in self.data["tracks"]:
             if track.get("feeder_segment_id") == segment_id:
                 del track["feeder_segment_id"]
@@ -160,42 +156,37 @@ class LayoutDocument:
         for other, position in self.node_positions().items():
             if other != node and math.dist(position, target) < SNAP_DISTANCE:
                 raise LayoutError("Another node is already there")
-        nodes = self.segment_nodes()
-        for drawing in self.drawings:
-            start, end = nodes.get(drawing["id"], (None, None))
-            if start == node:
-                drawing["start_point"] = list(target)
-            if end == node:
-                drawing["end_point"] = list(target)
+        moved = _find(self.data["nodes"], node)
+        if moved is None:
+            raise LayoutError(f"Unknown node {node}")
+        moved["x"], moved["y"] = target
 
     def reverse_segment(self, segment_id: int):
         """Swaps the segment's ends, which flips the direction positive voltage moves trains."""
-        segment, drawing = _find(self.data["segments"], segment_id), _find(self.drawings, segment_id)
-        if segment is None or drawing is None:
+        segment = _find(self.data["segments"], segment_id)
+        if segment is None:
             raise LayoutError(f"Unknown segment {segment_id}")
         segment["from"], segment["to"] = segment["to"], segment["from"]
-        drawing["start_point"], drawing["end_point"] = drawing["end_point"], drawing["start_point"]
-        if drawing["shape"] == "curve":
-            drawing["start_angle"], drawing["extent"] = drawing["start_angle"] + drawing["extent"], -drawing["extent"]
+        if segment.get("shape") == "curve":
+            segment["extent"] = -segment["extent"]
 
-    def set_curve(self, segment_id: int, start_angle: float, extent: float):
-        drawing = _find(self.drawings, segment_id)
-        if drawing is None or drawing["shape"] != "curve":
+    def _curve(self, segment_id: int) -> dict:
+        segment = _find(self.data["segments"], segment_id)
+        if segment is None or segment.get("shape") != "curve":
             raise LayoutError(f"Segment {segment_id} is not a curve")
-        try:
-            diagram_helper.curve_to_tkinter_arc({**drawing, "start_angle": start_angle, "extent": extent})
-        except ValueError as exc:
-            raise LayoutError(str(exc))
-        drawing["start_angle"], drawing["extent"] = start_angle, extent
+        return segment
+
+    def set_curve(self, segment_id: int, extent: float):
+        """Sets the arc of a curve in degrees; negative is clockwise from the segment's start to its end."""
+        segment = self._curve(segment_id)
+        if abs(extent) not in diagram_helper.CURVE_EXTENTS:
+            raise LayoutError(f"Curve extent must be one of {list(diagram_helper.CURVE_EXTENTS)} (negative for clockwise)")
+        segment["extent"] = extent
 
     def flip_curve(self, segment_id: int):
-        """Bends the curve the other way between the same end points (the arc mirrored through the chord's midpoint)."""
-        drawing = _find(self.drawings, segment_id)
-        if drawing is None or drawing["shape"] != "curve":
-            raise LayoutError(f"Segment {segment_id} is not a curve")
-        angle = (drawing["start_angle"] + drawing["extent"] + 180) % 360
-        drawing["start_angle"] = int(angle) if float(angle).is_integer() else angle
-        drawing["extent"] = -drawing["extent"]
+        """Bends the curve the other way between the same end points."""
+        segment = self._curve(segment_id)
+        segment["extent"] = -segment["extent"]
 
     # Sensors, points and insulated joints
 
@@ -270,7 +261,6 @@ class LayoutDocument:
 
     def remove_track(self, track_id: int):
         self.data["tracks"] = [t for t in self.data["tracks"] if t["id"] != track_id]
-        self._sync_feeder_flags()
 
     def feeder_tracks(self, segment_id: int) -> list[int]:
         return [t["id"] for t in self.data["tracks"] if t.get("feeder_segment_id") == segment_id]
@@ -283,13 +273,11 @@ class LayoutDocument:
             raise LayoutError(f"Unknown segment {segment_id}")
         self.clear_feeder(segment_id)
         track["feeder_segment_id"] = segment_id
-        self._sync_feeder_flags()
 
     def clear_feeder(self, segment_id: int):
         for track in self.data["tracks"]:
             if track.get("feeder_segment_id") == segment_id:
                 del track["feeder_segment_id"]
-        self._sync_feeder_flags()
 
     def set_speed_trap(self, trap_id: int | None, track_id: int, sensor_1_id: int, sensor_2_id: int,
                        distance: float) -> int:
@@ -341,6 +329,7 @@ class LayoutDocument:
         """Drops references left dangling by an edit, so the layout stays loadable."""
         nodes = self.segment_nodes()
         known = {node for pair in nodes.values() for node in pair}
+        self.data["nodes"] = [n for n in self.data["nodes"] if n["id"] in known]
         self.data["sensors"] = [s for s in self.data["sensors"] if s.get("node") in known]
         self.data["insulated_joints"] = [
             j for j in self.data["insulated_joints"]
@@ -351,15 +340,6 @@ class LayoutDocument:
             and all(sid in self.segments_at(p["node"]) for sid in p["direction_segments"])]
         derived = self.blocks()
         self.data["blocks"] = [b for b in self.data["blocks"] if b.get("occupied") and b["id"] in derived]
-        self._sync_feeder_flags()
-
-    def _sync_feeder_flags(self):
-        feeders = {t.get("feeder_segment_id") for t in self.data["tracks"]}
-        for drawing in self.drawings:
-            if drawing["id"] in feeders:
-                drawing["feeder"] = True
-            else:
-                drawing.pop("feeder", None)
 
 
 class FormDialog(tk.Toplevel):
@@ -419,6 +399,7 @@ class LayoutEditor:
         self.tool = tk.StringVar(value="select")
         self.show_ids = tk.BooleanVar(value=True)
         self.flip_curve = tk.BooleanVar(value=False)
+        self.curve_extent = tk.StringVar(value="90")
         self._cursor: tuple | None = None
         self.name_var = tk.StringVar()
         self.description_var = tk.StringVar()
@@ -468,6 +449,10 @@ class LayoutEditor:
         for label, value in (("Select / move", "select"), ("Straight", "straight"), ("Curve", "curve")):
             ttk.Radiobutton(toolbar, text=label, value=value, variable=self.tool,
                             command=self._on_tool_change).pack(side="left", padx=2)
+        ttk.Label(toolbar, text="Arc").pack(side="left", padx=(6, 0))
+        ttk.Combobox(toolbar, textvariable=self.curve_extent, state="readonly", width=4,
+                     values=[str(extent) for extent in diagram_helper.CURVE_EXTENTS]).pack(side="left", padx=2)
+        self.curve_extent.trace_add("write", lambda *_: self._refresh_preview())
         ttk.Checkbutton(toolbar, text="Flip curve (R)", variable=self.flip_curve,
                         command=self._refresh_preview).pack(side="left", padx=2)
         ttk.Checkbutton(toolbar, text="Show ids", variable=self.show_ids,
@@ -615,7 +600,8 @@ class LayoutEditor:
             self._draw_preview(snapped)
             return
         start, self.pending_start = self.pending_start, None
-        segment_id = self._edit(self.doc.add_segment, start, snapped, tool, self.flip_curve.get())
+        segment_id = self._edit(self.doc.add_segment, start, snapped, tool, self.flip_curve.get(),
+                                int(self.curve_extent.get()))
         if segment_id is not None:
             self._select(("segment", segment_id))
 
@@ -644,9 +630,9 @@ class LayoutEditor:
     def _draw_preview(self, end):
         self.canvas.delete("preview")
         start = self.pending_start
-        drawing = {"shape": self.tool.get(), "start_point": list(start), "end_point": list(end),
-                   "start_angle": 180 if self.flip_curve.get() else 90, "extent": 90 if self.flip_curve.get() else -90}
-        points, smooth = self._segment_points(drawing)
+        extent = int(self.curve_extent.get())
+        segment = {"from": 0, "to": 1, "shape": self.tool.get(), "extent": extent if self.flip_curve.get() else -extent}
+        points, smooth = self._segment_points(segment, {0: start, 1: end})
         self.canvas.create_line(*points, smooth=smooth, fill="#d9232d", dash=(4, 3), width=2, tags="preview")
         self.canvas.create_oval(start[0] - 5, start[1] - 5, start[0] + 5, start[1] + 5, outline="#d9232d",
                                 tags="preview")
@@ -654,13 +640,14 @@ class LayoutEditor:
     # Drawing
 
     @staticmethod
-    def _segment_points(drawing: dict) -> tuple[list, bool]:
-        if drawing["shape"] == "curve":
+    def _segment_points(segment: dict, positions: dict) -> tuple[list, bool]:
+        """Line points and whether to smooth them; a curve that cannot be drawn falls back to a straight line."""
+        if segment.get("shape") == "curve":
             try:
-                return diagram_helper.curve_to_line_points(drawing), True
+                return diagram_helper.segment_line_points(segment, positions), True
             except (ValueError, KeyError, ZeroDivisionError):
                 pass
-        return [*drawing["start_point"], *drawing["end_point"]], False
+        return [*positions[segment["from"]], *positions[segment["to"]]], False
 
     @staticmethod
     def _midpoint(points: list) -> tuple:
@@ -671,27 +658,28 @@ class LayoutEditor:
     def _redraw(self):
         canvas, doc = self.canvas, self.doc
         canvas.delete("all")
-        drawings = {d["id"]: d for d in doc.drawings}
+        positions = doc.node_positions()
+        segments = {s["id"]: s for s in doc.data["segments"]}
         label_font = ("TkDefaultFont", 9, "bold")
 
         for block in doc.block_summaries():
             color = OCCUPIED_COLOR if block["occupied"] else UNOCCUPIED_COLOR
             for segment_id in block["segments"]:
-                if segment_id in drawings:
-                    points, smooth = self._segment_points(drawings[segment_id])
+                if segment_id in segments:
+                    points, smooth = self._segment_points(segments[segment_id], positions)
                     canvas.create_line(*points, width=BLOCK_WIDTH, fill=color, smooth=smooth)
 
-        for segment_id, drawing in drawings.items():
-            points, smooth = self._segment_points(drawing)
+        for segment_id, segment in segments.items():
+            points, smooth = self._segment_points(segment, positions)
             selected = self.selection == ("segment", segment_id)
             options = {"width": 4 if selected else 2, "fill": "#d9232d" if selected else "black",
                        "smooth": smooth, "arrow": tk.LAST, "arrowshape": (10, 12, 4),
                        "tags": ("segment", f"segment:{segment_id}")}
-            if drawing["shape"] == "curve" and not smooth:
+            if segment.get("shape") == "curve" and not smooth:
                 options["dash"] = (4, 3)
             canvas.create_line(*points, **options)
             x, y = self._midpoint(points)
-            if drawing.get("feeder"):
+            if doc.feeder_tracks(segment_id):
                 canvas.create_polygon(diagram_helper.feeder_symbol(x, y), fill="lime", outline="black")
             if self.show_ids.get():
                 canvas.create_text(x + 9, y - 10, text=str(segment_id), fill="#1a4fd6", font=label_font)
@@ -699,7 +687,7 @@ class LayoutEditor:
         sensors = {s.get("node"): s["id"] for s in doc.data["sensors"]}
         points_by_node = {p.get("node"): p["id"] for p in doc.data["points"]}
         joint_nodes = {j.get("node") for j in doc.data["insulated_joints"]}
-        for node, (x, y) in doc.node_positions().items():
+        for node, (x, y) in positions.items():
             if self.selection == ("node", node):
                 canvas.create_oval(x - 13, y - 13, x + 13, y + 13, outline="orange", width=3)
             canvas.create_oval(x - 4, y - 4, x + 4, y + 4, fill="white", outline="black")
@@ -730,25 +718,26 @@ class LayoutEditor:
             self._build_node_panel(frame, item_id)
 
     def _build_segment_panel(self, frame, segment_id: int):
-        drawing = _find(self.doc.drawings, segment_id)
-        start, end = self.doc.segment_nodes()[segment_id]
+        segment = _find(self.doc.data["segments"], segment_id)
+        start, end = segment["from"], segment["to"]
+        shape = segment.get("shape", "straight")
         ttk.Label(frame, text=f"Segment {segment_id}", font=("TkDefaultFont", 12, "bold")).pack(anchor="w")
-        ttk.Label(frame, text=f"{drawing['shape']}, from node {start} to node {end}").pack(anchor="w")
+        ttk.Label(frame, text=f"{shape}, from node {start} to node {end}").pack(anchor="w")
         ttk.Label(frame, text="Positive voltage moves trains from the start to the end.",
                   wraplength=300).pack(anchor="w")
 
-        if drawing["shape"] == "curve":
+        if shape == "curve":
             curve = ttk.LabelFrame(frame, text="Curve", padding=6)
             curve.pack(fill="x", pady=8)
-            angle_var = tk.StringVar(value=str(drawing["start_angle"]))
-            extent_var = tk.StringVar(value=str(drawing["extent"]))
-            for row, (label, var) in enumerate((("Start angle", angle_var), ("Extent", extent_var))):
-                ttk.Label(curve, text=label).grid(row=row, column=0, sticky="w", pady=2)
-                ttk.Entry(curve, textvariable=var, width=10).grid(row=row, column=1, padx=6)
+            extent_var = tk.StringVar(value=str(segment.get("extent", "")))
+            ttk.Label(curve, text="Extent").grid(row=0, column=0, sticky="w", pady=2)
+            choices = [str(sign * extent) for sign in (-1, 1) for extent in diagram_helper.CURVE_EXTENTS]
+            ttk.Combobox(curve, textvariable=extent_var, values=choices, width=6, state="readonly").grid(
+                row=0, column=1, padx=6)
             ttk.Button(curve, text="Apply", command=lambda: self._apply_curve(
-                segment_id, angle_var.get(), extent_var.get())).grid(row=2, column=0, columnspan=2, pady=(6, 0))
+                segment_id, extent_var.get())).grid(row=1, column=0, columnspan=2, pady=(6, 0))
             ttk.Button(curve, text="Flip curve", command=lambda: self._edit(
-                self.doc.flip_curve, segment_id)).grid(row=3, column=0, columnspan=2, pady=(4, 0))
+                self.doc.flip_curve, segment_id)).grid(row=2, column=0, columnspan=2, pady=(4, 0))
 
         feeders = self.doc.feeder_tracks(segment_id)
         ttk.Label(frame, text=f"Feeder of track {', '.join(map(str, feeders))}" if feeders else "Not a feeder"
@@ -817,13 +806,8 @@ class LayoutEditor:
             return
         self._edit(self.doc.set_sensor_id, node, sensor_id)
 
-    def _apply_curve(self, segment_id: int, angle_text: str, extent_text: str):
-        try:
-            angle, extent = _number(angle_text), _number(extent_text)
-        except ValueError:
-            messagebox.showerror("Layout editor", "Angles must be numbers", parent=self.root)
-            return
-        self._edit(self.doc.set_curve, segment_id, angle, extent)
+    def _apply_curve(self, segment_id: int, extent_text: str):
+        self._edit(self.doc.set_curve, segment_id, int(extent_text))
 
     def _set_feeder(self, segment_id: int):
         new_track = "(new track)"

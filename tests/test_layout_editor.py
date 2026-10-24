@@ -38,7 +38,8 @@ def test_drawing_a_loop_reuses_nodes_and_validates():
 
     track_id = doc.add_track()
     doc.set_feeder(track_id, 1)
-    assert doc.drawings[0]["feeder"] is True
+    assert doc.data["tracks"] == [{"id": track_id, "feeder_segment_id": 1}]
+    assert "diagram" not in doc.data
     assert doc.problems() == []
 
 
@@ -116,30 +117,37 @@ def test_insulated_joint_and_feeder_cleanup_on_delete():
     assert doc.problems() == []
 
 
-def test_moving_a_node_moves_every_attached_end_point():
+def test_moving_a_node_moves_every_attached_segment_end():
     doc = build_y_layout()
     junction = doc.node_at((200, 100))
     doc.move_node(junction, (203, 118))
 
     assert doc.node_positions()[junction] == (200, 120)
-    assert doc.drawings[0]["end_point"] == [200, 120]
-    assert doc.drawings[1]["start_point"] == [200, 120]
-    assert doc.drawings[2]["start_point"] == [200, 120]
+    assert doc.data["nodes"][junction] == {"id": junction, "x": 200, "y": 120}
+    assert doc.segments_at(junction) == [1, 2, 3]
     assert doc.problems() == []
 
     with pytest.raises(LayoutError):
         doc.move_node(junction, (300, 100))
 
 
+def test_deleting_a_segment_drops_nodes_nothing_uses():
+    doc = build_y_layout()
+    doc.delete_segment(4)
+    assert sorted(doc.node_positions()) == [0, 1, 2, 3]
+    assert doc.problems() == []
+
+
 def test_reversing_a_curve_keeps_its_shape():
     doc = LayoutDocument()
     segment_id = doc.add_segment((100, 100), (200, 200), "curve")
-    before = diagram_helper.curve_to_line_points(doc.drawings[0])
+    positions = doc.node_positions()
+    before = diagram_helper.segment_line_points(doc.data["segments"][0], positions)
 
     doc.reverse_segment(segment_id)
 
     assert doc.segment_nodes()[segment_id] == (1, 0)
-    after = diagram_helper.curve_to_line_points(doc.drawings[0])
+    after = diagram_helper.segment_line_points(doc.data["segments"][0], positions)
     expected = [value for x, y in zip(before[0::2][::-1], before[1::2][::-1]) for value in (x, y)]
     assert after == pytest.approx(expected)
 
@@ -155,24 +163,45 @@ def test_device_ids_are_limited_to_the_protocol_range():
 def test_flipping_a_curve_bends_it_the_other_way_between_the_same_end_points():
     doc = LayoutDocument()
     segment_id = doc.add_segment((100, 100), (200, 200), "curve")
-    before = diagram_helper.curve_to_line_points(doc.drawings[0])
+    positions = doc.node_positions()
+    before = diagram_helper.segment_line_points(doc.data["segments"][0], positions)
 
     doc.flip_curve(segment_id)
-    flipped = diagram_helper.curve_to_line_points(doc.drawings[0])
+    flipped = diagram_helper.segment_line_points(doc.data["segments"][0], positions)
 
     assert flipped[:2] == pytest.approx(before[:2]) and flipped[-2:] == pytest.approx(before[-2:])
     mid = len(before) // 4 * 2
     assert before[mid:mid + 2] == pytest.approx([170.71, 129.29], abs=0.01)  # bulges to the upper right
     assert flipped[mid:mid + 2] == pytest.approx([129.29, 170.71], abs=0.01)  # bulges to the lower left
-    assert doc.drawings[0]["start_angle"] == 180 and doc.drawings[0]["extent"] == 90
+    assert doc.data["segments"][0]["extent"] == 90
 
     doc.flip_curve(segment_id)
-    assert (doc.drawings[0]["start_angle"], doc.drawings[0]["extent"]) == (90, -90)
+    assert doc.data["segments"][0]["extent"] == -90
 
 
-def test_a_curve_can_be_drawn_flipped():
+def test_a_curve_can_be_drawn_flipped_and_with_another_extent():
     doc = LayoutDocument()
     doc.add_segment((100, 100), (200, 200), "curve", flipped=True)
-    assert (doc.drawings[0]["start_angle"], doc.drawings[0]["extent"]) == (180, 90)
+    assert doc.data["segments"][0]["extent"] == 90
     with pytest.raises(LayoutError):
         doc.flip_curve(99)
+    with pytest.raises(LayoutError):
+        doc.add_segment((300, 100), (400, 200), "curve", extent=60)
+    assert len(doc.data["segments"]) == 1 and len(doc.data["nodes"]) == 2  # the rejected edit left nothing behind
+
+    doc.add_segment((300, 100), (400, 200), "curve", extent=15)
+    assert doc.data["segments"][1]["extent"] == -15
+
+
+def test_curve_extent_is_limited_to_the_supported_arcs():
+    doc = LayoutDocument()
+    curve = doc.add_segment((100, 100), (200, 200), "curve")
+    straight = doc.add_segment((200, 200), (300, 200))
+    for extent in (15, -30, 45, -90, 180):
+        doc.set_curve(curve, extent)
+        assert doc.problems() == []
+    with pytest.raises(LayoutError):
+        doc.set_curve(curve, 60)
+    with pytest.raises(LayoutError):
+        doc.set_curve(straight, 90)
+    assert doc.data["segments"][1] == {"id": straight, "from": 1, "to": 2, "shape": "straight"}
