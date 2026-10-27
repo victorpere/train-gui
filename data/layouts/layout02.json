@@ -52,6 +52,11 @@
             "id": 12,
             "x": 500,
             "y": 158
+        },
+        {
+            "id": 13,
+            "x": 430,
+            "y": 250
         }
     ],
     "segments": [
@@ -83,7 +88,7 @@
         {
             "id": 3,
             "from": 4,
-            "to": 5,
+            "to": 13,
             "shape": "straight"
         },
         {
@@ -117,6 +122,12 @@
             "from": 10,
             "to": 12,
             "shape": "straight"
+        },
+        {
+            "id": 13,
+            "from": 13,
+            "to": 5,
+            "shape": "straight"
         }
     ],
     "insulated_joints": [
@@ -141,16 +152,16 @@
             "node": 3
         },
         {
-            "id": 3,
-            "node": 4
-        },
-        {
             "id": 2,
             "node": 0
         },
         {
             "id": 1,
             "node": 9
+        },
+        {
+            "id": 3,
+            "node": 13
         }
     ],
     "points": [

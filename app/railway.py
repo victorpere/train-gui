@@ -325,6 +325,10 @@ class Layout:
         """Add a listener to layout component events"""
         self._listeners.append(cb)
 
+    @property
+    def insulated_joint_nodes(self) -> set[int]:
+        return {node for node, _ in self._insulated_joints}
+
     def node_location(self, node: int) -> tuple | None:
         """Diagram coordinates of a node"""
         return self.node_locations.get(node)

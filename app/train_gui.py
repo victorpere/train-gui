@@ -53,6 +53,7 @@ class DiagramConfig:
         self.symbol_active_color = config.get("Diagram", "symbol_active_color")
         self.symbol_diameter = float(config.get("Diagram", "symbol_diameter"))
         self.symbol_text_color = config.get("Diagram", "symbol_text_color")
+        self.insulator_color = config.get("Diagram", "insulator_color", fallback="red")
 
 
 class ControllerCallback(Protocol):
@@ -473,6 +474,12 @@ class TrainController:
                     segment_center = diagram_helper.center_point(feeder, self.layout.node_locations)
                     self.canvas.create_polygon(diagram_helper.feeder_symbol(
                         segment_center[0], segment_center[1]), fill=self.diagram_config.electrified_color, outline=self.diagram_config.symbol_outline_color, width=self.diagram_config.symbol_outline_width)
+            for node in self.layout.insulated_joint_nodes:
+                location = self.layout.node_location(node)
+                if location is not None:
+                    self.canvas.create_polygon(
+                        diagram_helper.isolator_symbol(location[0], location[1]), fill="",
+                        outline=self.diagram_config.insulator_color, width=self.diagram_config.symbol_outline_width + 1)
             self.canvas.pack()
             self._draw_blocks()
         except Exception as exc:
