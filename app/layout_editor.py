@@ -151,8 +151,8 @@ class LayoutDocument:
                 del track["feeder_segment_id"]
         self._cleanup()
 
-    def move_node(self, node: int, point):
-        target = _grid_snap(point)
+    def move_node(self, node: int, point, snap: bool = True):
+        target = _grid_snap(point) if snap else tuple(point)
         for other, position in self.node_positions().items():
             if other != node and math.dist(position, target) < SNAP_DISTANCE:
                 raise LayoutError("Another node is already there")
@@ -755,8 +755,18 @@ class LayoutEditor:
         x, y = self.doc.node_positions()[node]
         touching = self.doc.segments_at(node)
         ttk.Label(frame, text=f"Node {node}", font=("TkDefaultFont", 12, "bold")).pack(anchor="w")
-        ttk.Label(frame, text=f"At ({x}, {y}), joins segments {', '.join(map(str, touching))}",
+        ttk.Label(frame, text=f"Joins segments {', '.join(map(str, touching))}",
                   wraplength=300).pack(anchor="w")
+        position_row = ttk.Frame(frame)
+        position_row.pack(anchor="w", pady=(6, 0))
+        x_var, y_var = tk.StringVar(value=str(x)), tk.StringVar(value=str(y))
+        for label, var in (("X", x_var), ("Y", y_var)):
+            ttk.Label(position_row, text=label).pack(side="left")
+            entry = ttk.Entry(position_row, textvariable=var, width=7)
+            entry.pack(side="left", padx=(2, 8))
+            entry.bind("<Return>", lambda _: self._apply_position(node, x_var.get(), y_var.get()))
+        ttk.Button(position_row, text="Set",
+                   command=lambda: self._apply_position(node, x_var.get(), y_var.get())).pack(side="left")
 
         sensor_id = self.doc.sensor_at(node)
         sensor_var = tk.BooleanVar(value=sensor_id is not None)
@@ -797,6 +807,15 @@ class LayoutEditor:
         if joints:
             ttk.Button(frame, text="Remove joints",
                        command=lambda: self._edit(self.doc.remove_joints, node)).pack(anchor="w", pady=2)
+
+    def _apply_position(self, node: int, x_text: str, y_text: str):
+        try:
+            point = (_number(x_text), _number(y_text))
+        except ValueError:
+            messagebox.showerror("Layout editor", "X and Y must be numbers", parent=self.root)
+            return
+        if point != self.doc.node_positions()[node]:
+            self._edit(self.doc.move_node, node, point, False)
 
     def _apply_sensor_id(self, node: int, text: str):
         try:
