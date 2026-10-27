@@ -431,8 +431,9 @@ def ask_form(parent, title: str, fields: list) -> dict | None:
 
 
 class LayoutEditor:
-    def __init__(self, root, path: str | None = None):
+    def __init__(self, root, path: str | None = None, on_save=None):
         self.root = root
+        self.on_save = on_save  # called with the saved path
         self.doc = LayoutDocument()
         self.path: str | None = None
         self.modified = False
@@ -1101,6 +1102,8 @@ class LayoutEditor:
         self.path = path
         self.modified = False
         self._refresh()
+        if self.on_save:
+            self.on_save(path)
         return True
 
     def close(self):

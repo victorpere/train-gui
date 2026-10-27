@@ -10,6 +10,7 @@ from scenario import ScenarioRunner, ScenarioState, ScenarioStatus
 from railway import Layout, Message, MessageType, DeviceType, Sensor, Point, Block
 from communication import Communicator
 from util import load_data_from_file, save_data_to_file, load_canvas_size
+from layout_editor import LayoutEditor
 import diagram_helper
 
 DEFAULT_LAYOUT_PATH = os.path.join("data", "layouts", "layout01.json")
@@ -228,6 +229,9 @@ class TrainController:
             ttk.Label(layout_file_frame, textvariable=variable, wraplength=380,
                       justify="left").grid(row=row, column=1, sticky="w")
 
+        ttk.Button(layout_file_frame, text="Edit Layout",
+                   command=self.edit_layout).grid(row=0, column=2, sticky="e", padx=(10, 0))
+
         self.layout_content_frame = ttk.Frame(self.left_frame)
         self.layout_content_frame.pack(fill="x")
 
@@ -351,6 +355,20 @@ class TrainController:
                                       filetypes=[('Layout files', '*.json *.yaml *.yml'), ('JSON files', '*.json'), ('YAML files', '*.yaml *.yml')])
         if len(filepath) > 0:
             self.load_layout_file(filepath)
+
+    def edit_layout(self):
+        editor_window = getattr(self, "editor_window", None)
+        if editor_window is not None and editor_window.winfo_exists():
+            editor_window.lift()
+            return
+        self.editor_window = tk.Toplevel(self.root)
+        LayoutEditor(self.editor_window, self.layout_path, on_save=self._on_layout_saved)
+
+    def _on_layout_saved(self, layout_path):
+        if self.scenario_runner.is_running:
+            self.set_message("warning", "Layout saved; stop the running scenario and reload it to apply")
+            return
+        self.load_layout_file(layout_path)
 
     def load_layout_file(self, layout_path):
         try:
