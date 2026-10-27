@@ -205,3 +205,53 @@ def test_curve_extent_is_limited_to_the_supported_arcs():
     with pytest.raises(LayoutError):
         doc.set_curve(straight, 90)
     assert doc.data["segments"][1] == {"id": straight, "from": 1, "to": 2, "shape": "straight"}
+
+
+def test_splitting_a_straight_segment_puts_a_node_in_its_centre():
+    doc = build_y_layout()
+    junction = doc.node_at((200, 100))
+    doc.add_joint(junction, 1, 2)
+    track_id = doc.add_track()
+    doc.set_feeder(track_id, 2)
+
+    node = doc.split_segment(2)
+
+    assert doc.node_positions()[node] == (250, 100)
+    assert doc.segment_nodes()[2] == (junction, node)
+    assert doc.segment_nodes()[5] == (node, doc.node_at((300, 100)))
+    assert doc.data["tracks"][0]["feeder_segment_id"] == 2
+    assert doc.problems() == []
+
+
+def test_splitting_moves_joints_and_points_at_the_old_end_to_the_new_segment():
+    doc = build_y_layout()
+    end = doc.node_at((300, 100))
+    doc.add_segment((300, 100), (400, 150))
+    doc.set_point(end, 2, 4)
+    doc.add_joint(end, 2, 5)
+
+    doc.split_segment(2)
+
+    assert doc.data["points"][0]["direction_segments"] == [6, 4]
+    assert doc.joints_at(end) == [{"node": end, "segments": [6, 5]}]
+    assert doc.problems() == []
+
+
+def test_splitting_a_curve_puts_the_node_on_the_arc_and_halves_the_extent():
+    doc = LayoutDocument()
+    segment_id = doc.add_segment((100, 100), (200, 200), "curve")
+    before = diagram_helper.segment_line_points(doc.data["segments"][0], doc.node_positions())
+    mid = len(before) // 4 * 2
+
+    node = doc.split_segment(segment_id)
+
+    assert doc.node_positions()[node] == pytest.approx(before[mid:mid + 2], abs=0.1)
+    assert [s["extent"] for s in doc.data["segments"]] == [-45, -45]
+    assert doc.problems() == []
+
+    small = LayoutDocument()
+    small.add_segment((100, 100), (200, 200), "curve", extent=15)
+    with pytest.raises(LayoutError):
+        small.split_segment(1)
+    with pytest.raises(LayoutError):
+        small.split_segment(99)

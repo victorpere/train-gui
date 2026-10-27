@@ -68,6 +68,11 @@ def _number(text: str):
     return int(value) if value.is_integer() else value
 
 
+def _round_coordinate(value: float):
+    rounded = round(value, 1)
+    return int(rounded) if rounded.is_integer() else rounded
+
+
 def _grid_snap(point) -> tuple[int, int]:
     return round(point[0] / GRID) * GRID, round(point[1] / GRID) * GRID
 
@@ -150,6 +155,48 @@ class LayoutDocument:
             if track.get("feeder_segment_id") == segment_id:
                 del track["feeder_segment_id"]
         self._cleanup()
+
+    def split_segment(self, segment_id: int) -> int:
+        """Splits a segment in two at its centre and returns the new node. The original segment keeps
+        its id, its start and its feeder; the new segment runs from the new node to the old end."""
+        segment = _find(self.data["segments"], segment_id)
+        if segment is None:
+            raise LayoutError(f"Unknown segment {segment_id}")
+        positions = self.node_positions()
+        start, end = positions[segment["from"]], positions[segment["to"]]
+        extent = segment.get("extent")
+        if segment.get("shape") == "curve":
+            half = extent / 2
+            if abs(half) not in diagram_helper.CURVE_EXTENTS:
+                raise LayoutError(f"A curve of {abs(extent)} degrees cannot be split into supported arcs")
+            geometry = diagram_helper.curve_geometry(start, end, extent)
+            angle = math.radians(geometry["start_angle"] + half)
+            cx, cy = geometry["center"]
+            middle = (cx + geometry["radius"] * math.cos(angle), cy - geometry["radius"] * math.sin(angle))
+        else:
+            middle = ((start[0] + end[0]) / 2, (start[1] + end[1]) / 2)
+
+        node = max(positions, default=-1) + 1
+        # An id above all others keeps the derived block ids, which are the lowest segment id, stable
+        new_id = max(s["id"] for s in self.data["segments"]) + 1
+        old_end = segment["to"]
+        new_segment = {"id": new_id, "from": node, "to": old_end, "shape": segment.get("shape", "straight")}
+        if extent is not None:
+            segment["extent"] = new_segment["extent"] = half
+        segment["to"] = node
+        self.data["nodes"].append({"id": node, "x": _round_coordinate(middle[0]), "y": _round_coordinate(middle[1])})
+        self.data["segments"].append(new_segment)
+
+        # The old end node now meets the new segment instead of the original
+        for joint in self.data["insulated_joints"]:
+            if joint.get("node") == old_end:
+                joint["segments"] = [new_id if s == segment_id else s for s in joint["segments"]]
+        for point in self.data["points"]:
+            if point.get("node") == old_end:
+                point["direction_segments"] = [new_id if s == segment_id else s
+                                               for s in point["direction_segments"]]
+        self._cleanup()
+        return node
 
     def move_node(self, node: int, point, snap: bool = True):
         target = _grid_snap(point) if snap else tuple(point)
@@ -746,8 +793,10 @@ class LayoutEditor:
         if feeders:
             ttk.Button(frame, text="Clear feeder",
                        command=lambda: self._edit(self.doc.clear_feeder, segment_id)).pack(anchor="w", pady=2)
+        ttk.Button(frame, text="Split in the middle", command=lambda: self._split_segment(segment_id)).pack(
+            anchor="w", pady=(8, 0))
         ttk.Button(frame, text="Reverse direction",
-                   command=lambda: self._edit(self.doc.reverse_segment, segment_id)).pack(anchor="w", pady=(8, 2))
+                   command=lambda: self._edit(self.doc.reverse_segment, segment_id)).pack(anchor="w", pady=2)
         ttk.Button(frame, text="Delete segment",
                    command=lambda: self._edit(self.doc.delete_segment, segment_id)).pack(anchor="w")
 
@@ -824,6 +873,11 @@ class LayoutEditor:
             messagebox.showerror("Layout editor", "Sensor id must be a whole number", parent=self.root)
             return
         self._edit(self.doc.set_sensor_id, node, sensor_id)
+
+    def _split_segment(self, segment_id: int):
+        node = self._edit(self.doc.split_segment, segment_id)
+        if node is not None:
+            self._select(("node", node))
 
     def _apply_curve(self, segment_id: int, extent_text: str):
         self._edit(self.doc.set_curve, segment_id, int(extent_text))
