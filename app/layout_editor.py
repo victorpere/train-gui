@@ -19,6 +19,7 @@ MAX_DEVICE_ID = 15  # the serial protocol packs device ids into 4 bits
 BLOCK_WIDTH = 10
 UNOCCUPIED_COLOR = "lightgreen"
 OCCUPIED_COLOR = "lightpink"
+HIGHLIGHT_COLOR = "orange"
 INITIAL_DIRECTIONS = ["0 (primary route)", "1 (secondary route)"]
 TOOL_HINTS = {
     "select": "Click to select, drag a node to move it",
@@ -444,6 +445,7 @@ class LayoutEditor:
         self._track_ids: list[int] = []
         self._trap_ids: list[int] = []
         self._block_ids: list[int] = []
+        self.highlighted_block: int | None = None
         self.tool = tk.StringVar(value="select")
         self.show_ids = tk.BooleanVar(value=True)
         self.flip_curve = tk.BooleanVar(value=False)
@@ -533,6 +535,7 @@ class LayoutEditor:
             ("Remove", self._remove_speed_trap)])
         self.block_list = self._list_tab(notebook, "Blocks", [
             ("Toggle occupied", self._toggle_block)])
+        self.block_list.bind("<<ListboxSelect>>", lambda _: self._on_block_select())
         layout_tab = ttk.Frame(notebook, padding=8)
         notebook.add(layout_tab, text="Layout")
         for row, (label, var) in enumerate((("Name", self.name_var), ("Description", self.description_var),
@@ -710,7 +713,16 @@ class LayoutEditor:
         segments = {s["id"]: s for s in doc.data["segments"]}
         label_font = ("TkDefaultFont", 9, "bold")
 
-        for block in doc.block_summaries():
+        blocks = doc.block_summaries()
+        for block in blocks:
+            if block["id"] != self.highlighted_block:
+                continue
+            for segment_id in block["segments"]:
+                if segment_id in segments:
+                    points, smooth = self._segment_points(segments[segment_id], positions)
+                    canvas.create_line(*points, width=BLOCK_WIDTH + 8, fill=HIGHLIGHT_COLOR, smooth=smooth)
+
+        for block in blocks:
             color = OCCUPIED_COLOR if block["occupied"] else UNOCCUPIED_COLOR
             for segment_id in block["segments"]:
                 if segment_id in segments:
@@ -948,6 +960,16 @@ class LayoutEditor:
             (b["id"], f"Block {b['id']}: segments {b['segments']}, sensors {b['sensors']}"
                       f"{'  [occupied]' if b['occupied'] else ''}")
             for b in self.doc.block_summaries()])
+        if self.highlighted_block in self._block_ids:
+            index = self._block_ids.index(self.highlighted_block)
+            self.block_list.selection_set(index)
+            self.block_list.see(index)
+        else:
+            self.highlighted_block = None
+
+    def _on_block_select(self):
+        self.highlighted_block = self._selected_id(self.block_list, self._block_ids)
+        self._redraw()
 
     def _remove_track(self):
         track_id = self._selected_id(self.track_list, self._track_ids)
@@ -1020,9 +1042,9 @@ class LayoutEditor:
             exists = item_id in (self.doc.segment_nodes() if kind == "segment" else self.doc.node_positions())
             if not exists:
                 self.selection = None
+        self._refresh_lists()
         self._redraw()
         self._build_selection_panel()
-        self._refresh_lists()
         data = self.doc.data
         self.name_var.set(data["name"])
         self.description_var.set(data["description"])
