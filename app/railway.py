@@ -358,6 +358,30 @@ class Layout:
             segments[track.id] = self._connected_segments(track.feeder_segment_id)
         return segments
 
+    def occupied_blocks_changing_voltage(self, point: "Point", direction: int) -> list[int]:
+        """Ids of occupied blocks with a segment whose actual voltage would change if the point took the direction"""
+        def segment_voltages() -> dict[int, int]:
+            voltages: dict[int, int] = {}
+            for track_id, segment_ids in self.electrified_segments().items():
+                track: Track = self.components[DeviceType.ACTUAL_VOLTAGE.name][track_id]
+                for segment_id in segment_ids:
+                    voltages[segment_id] = voltages.get(segment_id, 0) + track.actual_voltage
+            return voltages
+
+        before = segment_voltages()
+        current = point._direction
+        point._direction = direction
+        try:
+            after = segment_voltages()
+        finally:
+            point._direction = current
+
+        blocks: dict[int, Block] = self.components[DeviceType.BLOCK.name]
+        changed = {segment_id for segment_id in self.segments
+                   if before.get(segment_id, 0) != after.get(segment_id, 0)}
+        affected = {self._segment_blocks[segment_id] for segment_id in changed if segment_id in self._segment_blocks}
+        return sorted(block_id for block_id in affected if blocks[block_id].occupied)
+
     def _connected_segments(self, start_segment_id: int) -> list[int]:
         """Segments reachable from a segment, passing through points only along their active route"""
         if start_segment_id not in self._segment_nodes:
@@ -710,24 +734,8 @@ class Point:
             and message.device_id == self.id:
             if message.message_type == MessageType.SET:
                 if message.device_type != DeviceType.POINT_DIRECTION_SKIP_CHECK and self._direction != message.value:
-                    electrified_segments = self._layout.electrified_segments()
-                    for track_id in electrified_segments:
-                        if self._direction_segments[self._direction] in electrified_segments[track_id] or \
-                           self._direction_segments[message.value] in electrified_segments[track_id]:
-                            voltage_query = Message(
-                                message_type=MessageType.QUERY,
-                                device_type=DeviceType.ACTUAL_VOLTAGE,
-                                device_id=track_id,
-                                value=0
-                            )
-                            ok, msg = self._layout.command(voltage_query)
-                            if ok:
-                                track_voltage = int(msg)
-                                if track_voltage != 0:
-                                    return False, "Track voltage is not 0"
-                            else:
-                                print(f"Failed to get track voltage: {msg}")
-                                return False, msg
+                    if self._layout.occupied_blocks_changing_voltage(self, message.value):
+                        return False, "Occupied block would change voltage"
                 self._direction = message.value
                 return self._cb(message)
             elif message.message_type == MessageType.QUERY:

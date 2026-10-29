@@ -276,6 +276,7 @@ def test_point(fake_factory):
         value=1
     )
 
+    # block 3 is occupied but has no voltage, so switching is allowed
     ok, msg = layout.command(switch_point_message)
     assert ok, f"Point switching failed: {msg}"
     # point direction should be switched
@@ -292,6 +293,7 @@ def test_point(fake_factory):
     fake_factory.last.inject_bytes(incoming_message)
     time.sleep(0.1)
 
+    # occupied block 3 would gain voltage
     # try to switch point
     switch_point_message = Message(
         message_type=MessageType.SET,
