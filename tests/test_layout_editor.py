@@ -20,7 +20,7 @@ def build_y_layout() -> LayoutDocument:
     return doc
 
 
-@pytest.mark.parametrize("path", ["data/layouts/layout01.json", "data/layouts/layout02.json"])
+@pytest.mark.parametrize("path", ["tests/data/layout01.json", "tests/data/layout02.json"])
 def test_bundled_layouts_open_without_problems(path):
     doc = LayoutDocument(load_data_from_file(path))
     assert doc.problems() == []

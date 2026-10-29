@@ -1,0 +1,194 @@
+{
+    "name": "Layout 2",
+    "description": "Loop with one siding",
+    "scale": 150,
+    "nodes": [
+        {
+            "id": 0,
+            "x": 150,
+            "y": 50
+        },
+        {
+            "id": 1,
+            "x": 200,
+            "y": 50
+        },
+        {
+            "id": 2,
+            "x": 250,
+            "y": 50
+        },
+        {
+            "id": 3,
+            "x": 450,
+            "y": 50
+        },
+        {
+            "id": 4,
+            "x": 450,
+            "y": 250
+        },
+        {
+            "id": 5,
+            "x": 150,
+            "y": 250
+        },
+        {
+            "id": 6,
+            "x": 250,
+            "y": 60
+        },
+        {
+            "id": 9,
+            "x": 300,
+            "y": 80
+        },
+        {
+            "id": 10,
+            "x": 340,
+            "y": 96
+        },
+        {
+            "id": 12,
+            "x": 500,
+            "y": 158
+        },
+        {
+            "id": 13,
+            "x": 430,
+            "y": 250
+        }
+    ],
+    "segments": [
+        {
+            "id": 1,
+            "from": 0,
+            "to": 1,
+            "shape": "straight"
+        },
+        {
+            "id": 8,
+            "from": 1,
+            "to": 2,
+            "shape": "straight"
+        },
+        {
+            "id": 9,
+            "from": 2,
+            "to": 3,
+            "shape": "straight"
+        },
+        {
+            "id": 2,
+            "from": 3,
+            "to": 4,
+            "shape": "curve",
+            "extent": -180
+        },
+        {
+            "id": 3,
+            "from": 4,
+            "to": 13,
+            "shape": "straight"
+        },
+        {
+            "id": 4,
+            "from": 5,
+            "to": 0,
+            "shape": "curve",
+            "extent": -180
+        },
+        {
+            "id": 5,
+            "from": 1,
+            "to": 6,
+            "shape": "curve",
+            "extent": -15
+        },
+        {
+            "id": 10,
+            "from": 6,
+            "to": 9,
+            "shape": "straight"
+        },
+        {
+            "id": 11,
+            "from": 9,
+            "to": 10,
+            "shape": "straight"
+        },
+        {
+            "id": 12,
+            "from": 10,
+            "to": 12,
+            "shape": "straight"
+        },
+        {
+            "id": 13,
+            "from": 13,
+            "to": 5,
+            "shape": "straight"
+        }
+    ],
+    "insulated_joints": [
+        {
+            "node": 4,
+            "segments": [
+                3,
+                2
+            ]
+        }
+    ],
+    "tracks": [
+        {
+            "id": 0,
+            "feeder_segment_id": 1
+        }
+    ],
+    "blocks": [],
+    "sensors": [
+        {
+            "id": 0,
+            "node": 3
+        },
+        {
+            "id": 2,
+            "node": 0
+        },
+        {
+            "id": 1,
+            "node": 9
+        },
+        {
+            "id": 3,
+            "node": 13
+        }
+    ],
+    "points": [
+        {
+            "id": 0,
+            "node": 1,
+            "initial_direction": 0,
+            "direction_segments": [
+                8,
+                5
+            ]
+        }
+    ],
+    "speed_traps": [
+        {
+            "id": 0,
+            "track_id": 0,
+            "sensor_1_id": 0,
+            "sensor_2_id": 0,
+            "distance": 2836.02
+        },
+        {
+            "id": 1,
+            "track_id": 0,
+            "sensor_1_id": 0,
+            "sensor_2_id": 3,
+            "distance": 860.01
+        }
+    ]
+}

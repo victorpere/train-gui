@@ -322,7 +322,7 @@ def test_point(fake_factory):
 
 
 def test_validate_layout_accepts_bundled_layouts():
-    for path in ("tests/data/test_layout01.json", "data/layouts/layout01.json", "data/layouts/layout02.json"):
+    for path in ("tests/data/test_layout01.json", "tests/data/layout01.json", "tests/data/layout02.json"):
         assert validate_layout(load_data_from_file(path)) == [], path
 
 
@@ -447,7 +447,7 @@ def test_point_switch_in_test_mode_without_connection(fake_factory):
 
 def test_blocks_are_derived_from_sensor_nodes(fake_factory):
     layout = Layout(Communicator(serial_factory=fake_factory, time_to_initialize=0))
-    ok, msg = layout.load(load_data_from_file("data/layouts/layout01.json"))
+    ok, msg = layout.load(load_data_from_file("tests/data/layout01.json"))
     assert ok, msg
 
     blocks = layout.components[DeviceType.BLOCK.name]
