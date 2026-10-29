@@ -67,6 +67,11 @@
             "id": 12,
             "x": 500,
             "y": 158
+        },
+        {
+            "id": 13,
+            "x": 550,
+            "y": 150
         }
     ],
     "segments": [
@@ -91,9 +96,9 @@
         {
             "id": 2,
             "from": 3,
-            "to": 4,
+            "to": 13,
             "shape": "curve",
-            "extent": -180
+            "extent": -90.0
         },
         {
             "id": 3,
@@ -152,14 +157,21 @@
             "from": 10,
             "to": 12,
             "shape": "straight"
+        },
+        {
+            "id": 19,
+            "from": 13,
+            "to": 4,
+            "shape": "curve",
+            "extent": -90.0
         }
     ],
     "insulated_joints": [
         {
-            "node": 4,
+            "node": 13,
             "segments": [
-                3,
-                2
+                2,
+                19
             ]
         }
     ],

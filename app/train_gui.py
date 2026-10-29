@@ -52,6 +52,8 @@ class DiagramConfig:
         self.symbol_fill_color = config.get("Diagram", "symbol_fill_color")
         self.symbol_active_color = config.get("Diagram", "symbol_active_color")
         self.symbol_diameter = float(config.get("Diagram", "symbol_diameter"))
+        self.point_symbol_size = float(config.get("Diagram", "point_symbol_size"))
+        self.symbol_font_size = int(config.get("Diagram", "symbol_font_size"))
         self.symbol_text_color = config.get("Diagram", "symbol_text_color")
         self.insulator_color = config.get("Diagram", "insulator_color", fallback="red")
 
@@ -518,9 +520,24 @@ class TrainController:
             for direction_segment_id in point.direction_segments:
                 self.canvas.tag_bind(
                     self.segments[direction_segment_id][1], '<Button-1>', updateLambda)
+            self._add_point_symbol(point, updateLambda)
             self._update_point_diagram(point)
         except Exception as exc:
             print(f"Error building point: {point}")
+
+    def _add_point_symbol(self, point: Point, on_click):
+        location = self.layout.node_location(point.node)
+        if location is None:
+            return
+        diamond = self.canvas.create_polygon(
+            diagram_helper.diamond_symbol(location[0], location[1], self.diagram_config.point_symbol_size),
+            fill=self.diagram_config.symbol_fill_color, outline=self.diagram_config.symbol_outline_color,
+            width=self.diagram_config.symbol_outline_width, tags="point_symbol")
+        label = self.canvas.create_text(
+            location[0], location[1], text=f"P{point.id}", fill=self.diagram_config.symbol_text_color,
+            font=("TkDefaultFont", self.diagram_config.symbol_font_size), tags="point_symbol")
+        for item in (diamond, label):
+            self.canvas.tag_bind(item, '<Button-1>', on_click)
 
     def _switch_point_direction(self, point: Point):
         # TODO: move to railway/layout?
@@ -552,6 +569,7 @@ class TrainController:
                 else:
                     self.canvas.itemconfig(
                         self.segments[segment_id][1], width=self.diagram_config.line_width)
+            self.canvas.tag_raise("point_symbol")
             self.canvas.tag_raise("sensor")
         except Exception as exc:
             print(f"Failed to update point diagram: {str(exc)}")
@@ -565,7 +583,8 @@ class TrainController:
                 diagram_helper.round_symbol(s[0], s[1], self.diagram_config.symbol_diameter),
                 fill=self.diagram_config.symbol_fill_color, tags="sensor")
             sensor_label_id = self.canvas.create_text(
-                s[0], s[1], text=f"S{sensor.id}", fill=self.diagram_config.symbol_text_color, tags="sensor")
+                s[0], s[1], text=f"S{sensor.id}", fill=self.diagram_config.symbol_text_color,
+                font=("TkDefaultFont", self.diagram_config.symbol_font_size), tags="sensor")
             self.sensor_indicators[sensor.id] = sensor_indicator_id
             for item in (sensor_indicator_id, sensor_label_id):
                 self.canvas.tag_bind(item, '<Button-1>', lambda _event, sensor=sensor: self._toggle_sensor(sensor))

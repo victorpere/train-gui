@@ -94,6 +94,11 @@ def round_symbol(cx: float, cy: float, diameter: float):
     return x1, y1, x2, y2
 
 
+def diamond_symbol(cx: float, cy: float, diagonal: float):
+    half = diagonal / 2
+    return cx, cy - half, cx + half, cy, cx, cy + half, cx - half, cy
+
+
 def center_point(segment: dict, node_positions: dict):
     """Midpoint between a segment's end nodes"""
     start, end = node_positions[segment["from"]], node_positions[segment["to"]]
