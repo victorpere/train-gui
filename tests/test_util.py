@@ -1,4 +1,4 @@
-from util import encode_message, decode_message
+from util import encode_message, decode_message, EMERGENCY_STOP
 import os
 import sys
 
@@ -65,3 +65,16 @@ def test_device_type_encoding():
     encoded2 = encode_message(message2)
 
     assert encoded1 == encoded2
+
+
+def test_voltage_capped_and_emergency_stop():
+    def encoded_value(value):
+        return decode_message(encode_message(
+            {"message_type": 1, "device_type": 1, "device_id": 1, "value": value}))["value"]
+
+    assert encoded_value(127) == 127
+    assert encoded_value(200) == 127
+    assert encoded_value(-127) == -127
+    assert encoded_value(-200) == -127
+    assert encoded_value(EMERGENCY_STOP) == -128
+    assert encode_message({"value": EMERGENCY_STOP})[1] == 0b10000000

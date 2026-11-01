@@ -9,7 +9,7 @@ import tkinter.font as tkFont
 from scenario import ScenarioRunner, ScenarioState, ScenarioStatus
 from railway import Layout, Message, MessageType, DeviceType, Sensor, Point, Block
 from communication import Communicator
-from util import load_data_from_file, save_data_to_file, load_canvas_size
+from util import load_data_from_file, save_data_to_file, load_canvas_size, EMERGENCY_STOP
 from layout_editor import LayoutEditor
 import diagram_helper
 
@@ -84,6 +84,7 @@ class TrackControl:
     target_voltage_label: ttk.Label
     actual_voltage_label: ttk.Label
     reverse_button: ttk.Button
+    emergency_stop_button: tk.Button
     forward_button: ttk.Button
     control_buttons: list[ttk.Button]
     message_label: ttk.Label
@@ -119,6 +120,21 @@ class TrackControl:
         else:
             self.set_message("error", msg)
             self.reset_buttons()
+
+    def emergency_stop(self):
+        self.set_message()
+        message = Message(
+            message_type=MessageType.SET,
+            device_type=DeviceType.TARGET_VOLTAGE,
+            device_id=self.track_id,
+            value=EMERGENCY_STOP
+        )
+        ok, msg = self.callback(message)
+        if ok:
+            self.target_voltage.set(0)
+            self.reset_buttons()
+        else:
+            self.set_message("error", msg)
 
     def set_forward(self):
         self.set_message()
@@ -454,6 +470,11 @@ class TrainController:
                            b=btn: track_control.set_voltage(v, b))
         except Exception as e:
             print(f"Error building control buttons: {e}")
+
+        track_control.emergency_stop_button = tk.Button(
+            control_frame, text="EMERGENCY STOP", fg="red", command=track_control.emergency_stop)
+        track_control.emergency_stop_button.grid(
+            row=2, column=0, columnspan=max(len(self.buttons_data or []), 1), sticky="ew", padx=2, pady=2)
 
         message_frame = ttk.LabelFrame(track_frame, padding=0)
         message_frame.pack(fill="x", padx=0, pady=0)
@@ -809,7 +830,7 @@ class TrainController:
         elif message.device_type == DeviceType.TARGET_VOLTAGE:
             control = self.controls.get(message.device_id)
             if not control is None:
-                control.target_voltage.set(abs(message.value))
+                control.target_voltage.set(0 if message.value == EMERGENCY_STOP else abs(message.value))
             else:
                 self.set_message("error", f"Unknown track id: {message}")
                 return False, "Unknown device id"

@@ -4,6 +4,7 @@ from typing import List, Tuple, Protocol, overload
 from enum import Enum
 from communication import Communicator
 from diagram_helper import CURVE_EXTENTS
+from util import EMERGENCY_STOP, cap_voltage
 
 
 class MessageType(Enum):
@@ -566,6 +567,9 @@ class Track:
         return self._actual_voltage
 
     def set_voltage(self, voltage: int) -> Tuple[bool, str]:
+        voltage = cap_voltage(voltage)
+        if voltage == EMERGENCY_STOP:
+            return self._emergency_stop()
         if (voltage > 0 and (self._target_voltage < 0 or self._actual_voltage < 0)) or \
                 (voltage < 0 and (self._target_voltage > 0 or self._actual_voltage > 0)):
             return False, "Must be stopped before changing directions"
@@ -582,6 +586,20 @@ class Track:
             )
             ok, msg = self._cb(message)
             return ok, msg
+        except Exception as e:
+            return False, str(e)
+
+    def _emergency_stop(self) -> Tuple[bool, str]:
+        """Allowed in any direction; the controller cuts the voltage immediately."""
+        try:
+            self._target_voltage = 0
+            message = Message(
+                message_type=MessageType.SET,
+                device_type=DeviceType.TARGET_VOLTAGE,
+                device_id=self.id,
+                value=EMERGENCY_STOP
+            )
+            return self._cb(message)
         except Exception as e:
             return False, str(e)
 

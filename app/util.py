@@ -4,6 +4,16 @@ import os
 import yaml
 from typing import Optional
 
+# Target voltage value that commands an immediate emergency stop
+EMERGENCY_STOP = -128
+MAX_VOLTAGE = 127
+
+def cap_voltage(voltage: int) -> int:
+    """Caps a target voltage to -127..+127, leaving the emergency stop value unchanged."""
+    if voltage == EMERGENCY_STOP:
+        return voltage
+    return max(-MAX_VOLTAGE, min(MAX_VOLTAGE, voltage))
+
 def load_canvas_size(config_path: str = "config/config.ini") -> tuple[int, int]:
     """Diagram canvas (width, height), shared by the train GUI and the layout editor."""
     config = configparser.ConfigParser()
@@ -54,7 +64,7 @@ def encode_message(message: dict) -> bytes:
     """Encode a 3-byte message following the protocol.
     
     Byte 0: [message_type:1 | device_type:3 | device_id:4]
-    Byte 1: [value:8] (signed, -128 to +127)
+    Byte 1: [value:8] (signed, -127 to +127; -128 is the emergency stop command for target voltage)
     Byte 2: [CRC8]
     """
     message_type: int = message.get("message_type", 0)
@@ -66,7 +76,7 @@ def encode_message(message: dict) -> bytes:
     byte0 = (message_type << 7) | ((device_type & 0x07) << 4) | (device_id & 0x0F)
     
     # Byte 1: ensure value is in signed byte range
-    value = max(-128, min(127, value))
+    value = cap_voltage(value)
     byte1 = value & 0xFF
     
     # Bytes for CRC calculation (everything except CRC itself)
