@@ -20,9 +20,10 @@ BLOCK_WIDTH = 10
 UNOCCUPIED_COLOR = "lightgreen"
 OCCUPIED_COLOR = "lightpink"
 HIGHLIGHT_COLOR = "orange"
+SHIFT_MASK = 0x0001
 INITIAL_DIRECTIONS = ["0 (primary route)", "1 (secondary route)"]
 TOOL_HINTS = {
-    "select": "Click to select, drag a node to move it",
+    "select": "Click to select, Shift+Click to add or remove, drag a node or the selection to move it",
     "straight": "Click the start, then the end of the segment (Esc cancels)",
     "curve": "Click the start, then the end of the curve (Esc cancels)",
 }
@@ -208,6 +209,18 @@ class LayoutDocument:
         if moved is None:
             raise LayoutError(f"Unknown node {node}")
         moved["x"], moved["y"] = target
+
+    def move_nodes(self, positions: dict[int, tuple]):
+        """Places each node at its given position; the target positions must not touch unmoved nodes."""
+        others = [p for n, p in self.node_positions().items() if n not in positions]
+        for target in positions.values():
+            if any(math.dist(other, target) < SNAP_DISTANCE for other in others):
+                raise LayoutError("Another node is already there")
+        for node, (x, y) in positions.items():
+            moved = _find(self.data["nodes"], node)
+            if moved is None:
+                raise LayoutError(f"Unknown node {node}")
+            moved["x"], moved["y"] = x, y
 
     def reverse_segment(self, segment_id: int):
         """Swaps the segment's ends, which flips the direction positive voltage moves trains."""
@@ -439,7 +452,7 @@ class LayoutEditor:
         self.path: str | None = None
         self.modified = False
         self.undo_stack: list[dict] = []
-        self.selection: tuple[str, int] | None = None  # ("segment" | "node", id)
+        self.selection: list[tuple[str, int]] = []  # ("segment" | "node", id) items
         self.pending_start: tuple | None = None
         self._drag: dict | None = None
         self._track_ids: list[int] = []
@@ -596,13 +609,38 @@ class LayoutEditor:
             messagebox.showinfo("Layout editor", "The layout is valid.", parent=self.root)
 
     def _select(self, selection):
-        self.selection = selection
+        self.selection = [selection] if selection is not None else []
         self._redraw()
         self._build_selection_panel()
 
+    def _toggle_selection(self, item):
+        if item in self.selection:
+            self.selection.remove(item)
+        else:
+            self.selection.append(item)
+        self._redraw()
+        self._build_selection_panel()
+
+    def _selected_node_positions(self) -> dict[int, tuple]:
+        """Positions of the selected nodes and the end nodes of the selected segments."""
+        ends = self.doc.segment_nodes()
+        nodes = {i for k, i in self.selection if k == "node"}
+        for segment_id in self._selected_segments():
+            nodes.update(ends[segment_id])
+        positions = self.doc.node_positions()
+        return {node: positions[node] for node in nodes}
+
+    def _selected_segments(self) -> list[int]:
+        return [item_id for kind, item_id in self.selection if kind == "segment"]
+
     def _delete_selected(self):
-        if self.selection and self.selection[0] == "segment":
-            self._edit(self.doc.delete_segment, self.selection[1])
+        segments = self._selected_segments()
+        if segments:
+            self._edit(self._delete_segments, segments)
+
+    def _delete_segments(self, segment_ids: list[int]):
+        for segment_id in segment_ids:
+            self.doc.delete_segment(segment_id)
 
     # Canvas interaction
 
@@ -636,12 +674,20 @@ class LayoutEditor:
         tool = self.tool.get()
         if tool == "select":
             node = self.doc.node_at(point)
+            segment_id = self._segment_at(point) if node is None else None
+            hit = ("node", node) if node is not None else ("segment", segment_id) if segment_id is not None else None
+            if event.state & SHIFT_MASK:
+                if hit is not None:
+                    self._toggle_selection(hit)
+                return
+            if hit is not None and hit in self.selection and len(self.selection) > 1:
+                origins = self._selected_node_positions()
+                self._drag = {"origins": origins, "start": point, "snapshot": copy.deepcopy(self.doc.data),
+                              "moved": False}
+                return
+            self._select(hit)
             if node is not None:
-                self._select(("node", node))
                 self._drag = {"node": node, "snapshot": copy.deepcopy(self.doc.data), "moved": False}
-            else:
-                segment_id = self._segment_at(point)
-                self._select(("segment", segment_id) if segment_id is not None else None)
             return
 
         snapped = self.doc.snap(point)
@@ -665,7 +711,13 @@ class LayoutEditor:
         if self._drag is None:
             return
         try:
-            self.doc.move_node(self._drag["node"], (event.x, event.y))
+            if "origins" in self._drag:
+                start = self._drag["start"]
+                dx = round((event.x - start[0]) / GRID) * GRID
+                dy = round((event.y - start[1]) / GRID) * GRID
+                self.doc.move_nodes({node: (x + dx, y + dy) for node, (x, y) in self._drag["origins"].items()})
+            else:
+                self.doc.move_node(self._drag["node"], (event.x, event.y))
         except LayoutError:
             return
         self._drag["moved"] = True
@@ -731,7 +783,7 @@ class LayoutEditor:
 
         for segment_id, segment in segments.items():
             points, smooth = self._segment_points(segment, positions)
-            selected = self.selection == ("segment", segment_id)
+            selected = ("segment", segment_id) in self.selection
             options = {"width": 4 if selected else 2, "fill": "#d9232d" if selected else "black",
                        "smooth": smooth, "arrow": tk.LAST, "arrowshape": (10, 12, 4),
                        "tags": ("segment", f"segment:{segment_id}")}
@@ -748,7 +800,7 @@ class LayoutEditor:
         points_by_node = {p.get("node"): p["id"] for p in doc.data["points"]}
         joint_nodes = {j.get("node") for j in doc.data["insulated_joints"]}
         for node, (x, y) in positions.items():
-            if self.selection == ("node", node):
+            if ("node", node) in self.selection:
                 canvas.create_oval(x - 13, y - 13, x + 13, y + 13, outline="orange", width=3)
             canvas.create_oval(x - 4, y - 4, x + 4, y + 4, fill="white", outline="black")
             if node in sensors:
@@ -768,10 +820,23 @@ class LayoutEditor:
         frame = self.selection_frame
         for child in frame.winfo_children():
             child.destroy()
-        if self.selection is None:
-            ttk.Label(frame, text="Nothing selected.\nClick a node or a segment.", justify="left").pack(anchor="w")
+        if not self.selection:
+            ttk.Label(frame, text="Nothing selected.\nClick a node or a segment.\nShift+Click to select several.",
+                      justify="left").pack(anchor="w")
             return
-        kind, item_id = self.selection
+        if len(self.selection) > 1:
+            nodes = [i for k, i in self.selection if k == "node"]
+            segments = self._selected_segments()
+            ttk.Label(frame, text=f"{len(self.selection)} items selected",
+                      font=("TkDefaultFont", 12, "bold")).pack(anchor="w")
+            if nodes:
+                ttk.Label(frame, text=f"Nodes: {', '.join(map(str, nodes))}", wraplength=300).pack(anchor="w")
+            if segments:
+                ttk.Label(frame, text=f"Segments: {', '.join(map(str, segments))}", wraplength=300).pack(anchor="w")
+                ttk.Button(frame, text="Delete selected segments", command=self._delete_selected).pack(
+                    anchor="w", pady=(8, 0))
+            return
+        kind, item_id = self.selection[0]
         if kind == "segment":
             self._build_segment_panel(frame, item_id)
         else:
@@ -1037,11 +1102,9 @@ class LayoutEditor:
     # Status and files
 
     def _refresh(self):
-        if self.selection is not None:
-            kind, item_id = self.selection
-            exists = item_id in (self.doc.segment_nodes() if kind == "segment" else self.doc.node_positions())
-            if not exists:
-                self.selection = None
+        segments, nodes = self.doc.segment_nodes(), self.doc.node_positions()
+        self.selection = [(kind, item_id) for kind, item_id in self.selection
+                          if item_id in (segments if kind == "segment" else nodes)]
         self._refresh_lists()
         self._redraw()
         self._build_selection_panel()
@@ -1071,7 +1134,7 @@ class LayoutEditor:
         self.doc, self.path = doc, path
         self.modified = False
         self.undo_stack.clear()
-        self.selection = None
+        self.selection = []
         self.pending_start = None
         self._refresh()
 
