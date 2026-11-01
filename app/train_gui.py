@@ -480,7 +480,7 @@ class TrainController:
                 location = self.layout.node_location(node)
                 if location is not None:
                     self.canvas.create_polygon(
-                        diagram_helper.isolator_symbol(location[0], location[1]), fill="",
+                        diagram_helper.isolator_symbol(location[0], location[1]), fill=self.diagram_config.symbol_fill_color,
                         outline=self.diagram_config.insulator_color, width=self.diagram_config.symbol_outline_width + 1)
             self.canvas.pack()
             self._draw_blocks()
