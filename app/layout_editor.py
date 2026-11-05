@@ -10,12 +10,11 @@ import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
 import diagram_helper
-from railway import derive_blocks, validate_layout
+from layout import CURVE_EXTENTS, MAX_DEVICE_ID, derive_blocks, new_layout, validate_layout
 from util import load_canvas_size, load_data_from_file, save_data_to_file
 
 GRID = 10
 SNAP_DISTANCE = 8
-MAX_DEVICE_ID = 15  # the serial protocol packs device ids into 4 bits
 BLOCK_WIDTH = 10
 UNOCCUPIED_COLOR = "lightgreen"
 OCCUPIED_COLOR = "lightpink"
@@ -31,22 +30,6 @@ TOOL_HINTS = {
 
 class LayoutError(ValueError):
     """An edit the layout cannot accept"""
-
-
-def new_layout() -> dict:
-    return {
-        "name": "New layout",
-        "description": "",
-        "scale": 150.0,
-        "nodes": [],
-        "segments": [],
-        "insulated_joints": [],
-        "tracks": [],
-        "blocks": [],
-        "sensors": [],
-        "points": [],
-        "speed_traps": [],
-    }
 
 
 def _find(items: list, item_id: int):
@@ -137,8 +120,8 @@ class LayoutDocument:
             points.append(point)
         if nodes[0] == nodes[1] or math.dist(points[0], points[1]) < SNAP_DISTANCE:
             raise LayoutError("A segment needs two distinct end points")
-        if shape == "curve" and extent not in diagram_helper.CURVE_EXTENTS:
-            raise LayoutError(f"Curve extent must be one of {list(diagram_helper.CURVE_EXTENTS)}")
+        if shape == "curve" and extent not in CURVE_EXTENTS:
+            raise LayoutError(f"Curve extent must be one of {list(CURVE_EXTENTS)}")
 
         segment_id = _free_id(self.data["segments"], 1)
         segment = {"id": segment_id, "from": nodes[0], "to": nodes[1], "shape": shape}
@@ -169,7 +152,7 @@ class LayoutDocument:
         extent = segment.get("extent")
         if segment.get("shape") == "curve":
             half = extent / 2
-            if abs(half) not in diagram_helper.CURVE_EXTENTS:
+            if abs(half) not in CURVE_EXTENTS:
                 raise LayoutError(f"A curve of {abs(extent)} degrees cannot be split into supported arcs")
             geometry = diagram_helper.curve_geometry(start, end, extent)
             angle = math.radians(geometry["start_angle"] + half)
@@ -240,8 +223,8 @@ class LayoutDocument:
     def set_curve(self, segment_id: int, extent: float):
         """Sets the arc of a curve in degrees; negative is clockwise from the segment's start to its end."""
         segment = self._curve(segment_id)
-        if abs(extent) not in diagram_helper.CURVE_EXTENTS:
-            raise LayoutError(f"Curve extent must be one of {list(diagram_helper.CURVE_EXTENTS)} (negative for clockwise)")
+        if abs(extent) not in CURVE_EXTENTS:
+            raise LayoutError(f"Curve extent must be one of {list(CURVE_EXTENTS)} (negative for clockwise)")
         segment["extent"] = extent
 
     def flip_curve(self, segment_id: int):
@@ -514,7 +497,7 @@ class LayoutEditor:
                             command=self._on_tool_change).pack(side="left", padx=2)
         ttk.Label(toolbar, text="Arc").pack(side="left", padx=(6, 0))
         ttk.Combobox(toolbar, textvariable=self.curve_extent, state="readonly", width=4,
-                     values=[str(extent) for extent in diagram_helper.CURVE_EXTENTS]).pack(side="left", padx=2)
+                     values=[str(extent) for extent in CURVE_EXTENTS]).pack(side="left", padx=2)
         self.curve_extent.trace_add("write", lambda *_: self._refresh_preview())
         ttk.Checkbutton(toolbar, text="Flip curve (R)", variable=self.flip_curve,
                         command=self._refresh_preview).pack(side="left", padx=2)
@@ -856,7 +839,7 @@ class LayoutEditor:
             curve.pack(fill="x", pady=8)
             extent_var = tk.StringVar(value=str(segment.get("extent", "")))
             ttk.Label(curve, text="Extent").grid(row=0, column=0, sticky="w", pady=2)
-            choices = [str(sign * extent) for sign in (-1, 1) for extent in diagram_helper.CURVE_EXTENTS]
+            choices = [str(sign * extent) for sign in (-1, 1) for extent in CURVE_EXTENTS]
             ttk.Combobox(curve, textvariable=extent_var, values=choices, width=6, state="readonly").grid(
                 row=0, column=1, padx=6)
             ttk.Button(curve, text="Apply", command=lambda: self._apply_curve(

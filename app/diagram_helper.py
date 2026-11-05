@@ -1,7 +1,5 @@
 import math
 
-CURVE_EXTENTS = (15, 30, 45, 90, 180)  # allowed arc sizes in degrees, either direction
-
 
 def curve_geometry(start_point, end_point, extent: float) -> dict:
     """Circle of the arc running from start_point to end_point through `extent` degrees.
