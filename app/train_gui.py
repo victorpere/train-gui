@@ -432,39 +432,50 @@ class TrainController:
         track_frame = ttk.LabelFrame(self.layout_content_frame, padding=10)
         track_frame.pack(fill="x", padx=10, pady=5)
 
+        top_frame = ttk.Frame(track_frame)
+        top_frame.pack(fill="x", padx=0, pady=0)
+
         dash_frame = ttk.LabelFrame(
-            track_frame, text=f"Track {track_id} Voltage", padding=0)
-        dash_frame.pack(fill="x", padx=0, pady=0)
+            top_frame, text=f"Track {track_id} Voltage", padding=0)
+        dash_frame.pack(side="left", fill="y", padx=0, pady=0)
         ttk.Label(dash_frame, text="Direction").grid(row=0, column=0)
         ttk.Label(dash_frame, text="Target").grid(row=0, column=1)
         ttk.Label(dash_frame, text="Actual").grid(row=0, column=2)
         track_control.direction_label = ttk.Label(
             dash_frame, textvariable=track_control.direction, font=DASH_FONT, width=3, justify=tk.CENTER)
-        track_control.direction_label.grid(row=1, column=0, padx=5)
+        track_control.direction_label.grid(row=1, column=0, padx=2)
         track_control.target_voltage_label = ttk.Label(
             dash_frame, textvariable=track_control.target_voltage, font=DASH_FONT, width=3, justify=tk.RIGHT)
-        track_control.target_voltage_label.grid(row=1, column=1, padx=5)
+        track_control.target_voltage_label.grid(row=1, column=1, padx=2)
         track_control.actual_voltage_label = ttk.Label(
             dash_frame, textvariable=track_control.actual_voltage, font=DASH_FONT, width=3, justify=tk.RIGHT)
-        track_control.actual_voltage_label.grid(row=1, column=2, padx=5)
+        track_control.actual_voltage_label.grid(row=1, column=2, padx=2)
 
-        control_frame = ttk.LabelFrame(track_frame, padding=0)
-        control_frame.pack(fill="x", padx=0, pady=0)
+        control_frame = ttk.Frame(top_frame)
+        control_frame.pack(side="left", fill="both", expand=True, padx=0, pady=0)
+
+        # Small requested button widths keep the window width unchanged; the
+        # buttons stretch to fill whatever space is left of dash_frame.
+        column_count = max(len(self.buttons_data or []), 2)
+        for column in range(column_count):
+            control_frame.columnconfigure(column, weight=1, uniform="control", minsize=65)
+        half = column_count // 2
 
         track_control.reverse_button = ttk.Button(
-            control_frame, text="◀ REV", state="normal", command=track_control.set_reverse)
-        track_control.reverse_button.grid(row=0, column=0, padx=2)
+            control_frame, text="◀ REV", width=1, state="normal", command=track_control.set_reverse)
+        track_control.reverse_button.grid(row=0, column=0, columnspan=half, sticky="ew", padx=2)
         track_control.forward_button = ttk.Button(
-            control_frame, text="FWD ▶", state="disabled", command=track_control.set_forward)
-        track_control.forward_button.grid(row=0, column=1, padx=2)
+            control_frame, text="FWD ▶", width=1, state="disabled", command=track_control.set_forward)
+        track_control.forward_button.grid(
+            row=0, column=half, columnspan=column_count - half, sticky="ew", padx=2)
 
         track_control.control_buttons = []
         try:
             for idx, button in enumerate(self.buttons_data):
                 voltage = button.get("value", 0)
                 label = button.get("label", str(voltage))
-                btn = ttk.Button(control_frame, text=label)
-                btn.grid(row=1, column=idx, padx=2)
+                btn = ttk.Button(control_frame, text=label, width=1)
+                btn.grid(row=1, column=idx, sticky="ew", padx=0)
                 track_control.control_buttons.append(btn)
                 btn.config(command=lambda v=voltage,
                            b=btn: track_control.set_voltage(v, b))
@@ -472,9 +483,9 @@ class TrainController:
             print(f"Error building control buttons: {e}")
 
         track_control.emergency_stop_button = tk.Button(
-            control_frame, text="EMERGENCY STOP", fg="red", command=track_control.emergency_stop)
+            control_frame, text="EMERGENCY STOP", width=1, fg="red", command=track_control.emergency_stop)
         track_control.emergency_stop_button.grid(
-            row=2, column=0, columnspan=max(len(self.buttons_data or []), 1), sticky="ew", padx=2, pady=2)
+            row=2, column=0, columnspan=column_count, sticky="ew", padx=2, pady=2)
 
         message_frame = ttk.LabelFrame(track_frame, padding=0)
         message_frame.pack(fill="x", padx=0, pady=0)
