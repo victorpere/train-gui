@@ -492,11 +492,11 @@ class TrainController:
 
         track_control.reverse_button = ttk.Button(
             control_frame, text="◀ REV", width=1, state="normal", command=track_control.set_reverse)
-        track_control.reverse_button.grid(row=0, column=0, columnspan=half, sticky="ew", padx=2)
+        track_control.reverse_button.grid(row=0, column=0, sticky="ew", padx=2)
         track_control.forward_button = ttk.Button(
             control_frame, text="FWD ▶", width=1, state="disabled", command=track_control.set_forward)
         track_control.forward_button.grid(
-            row=0, column=half, columnspan=column_count - half, sticky="ew", padx=2)
+            row=0, column=1, sticky="ew", padx=2)
 
         track_control.control_buttons = []
         try:
