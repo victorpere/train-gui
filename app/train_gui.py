@@ -450,15 +450,19 @@ class TrainController:
         track_control = TrackControl(track_id, self.forward_message)
         self.controls[track_id] = track_control
 
-        track_frame = ttk.LabelFrame(self.layout_content_frame, padding=10)
+        track_frame = ttk.LabelFrame(self.layout_content_frame, text=f"Track {track_id} Voltage", padding=10)
         track_frame.pack(fill="x", padx=10, pady=5)
 
         top_frame = ttk.Frame(track_frame)
         top_frame.pack(fill="x", padx=0, pady=0)
+        top_frame.rowconfigure(0, weight=1)
+        top_frame.columnconfigure(1, weight=1)
 
-        dash_frame = ttk.LabelFrame(
-            top_frame, text=f"Track {track_id} Voltage", padding=0)
-        dash_frame.pack(side="left", fill="y", padx=0, pady=0)
+        # A text-less LabelFrame still reserves space for its label, so use a plain Frame.
+        dash_frame = ttk.Frame(top_frame)
+        dash_frame.grid(row=0, column=0, sticky="nsew", padx=0, pady=0)
+        for row in range(3):
+            dash_frame.rowconfigure(row, weight=1)
         ttk.Label(dash_frame, text="Target").grid(row=0, column=0)
         ttk.Label(dash_frame, text="Actual").grid(row=0, column=1)
         track_control.target_voltage_label = ttk.Label(
@@ -475,7 +479,9 @@ class TrainController:
         track_control.actual_direction_label.grid(row=2, column=1, padx=2)
 
         control_frame = ttk.Frame(top_frame)
-        control_frame.pack(side="left", fill="both", expand=True, padx=0, pady=0)
+        control_frame.grid(row=0, column=1, sticky="nsew", padx=0, pady=0)
+        for row in range(3):
+            control_frame.rowconfigure(row, weight=1)
 
         # Small requested button widths keep the window width unchanged; the
         # buttons stretch to fill whatever space is left of dash_frame.
