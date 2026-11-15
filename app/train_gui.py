@@ -80,9 +80,12 @@ class TrackControl:
     direction: tk.IntVar
     target_voltage: tk.IntVar
     actual_voltage: tk.IntVar
-    direction_label: ttk.Label
+    target_direction: tk.StringVar
+    actual_direction: tk.StringVar
     target_voltage_label: ttk.Label
     actual_voltage_label: ttk.Label
+    target_direction_label: ttk.Label
+    actual_direction_label: ttk.Label
     reverse_button: ttk.Button
     emergency_stop_button: tk.Button
     forward_button: ttk.Button
@@ -94,7 +97,25 @@ class TrackControl:
         self.direction = tk.IntVar(value=1)
         self.target_voltage = tk.IntVar(value=0)
         self.actual_voltage = tk.IntVar(value=0)
+        self.target_direction = tk.StringVar(value="FWD")
+        self.actual_direction = tk.StringVar(value="FWD")
         self.callback = callback
+
+    @staticmethod
+    def _direction_text(signed_voltage: int) -> str:
+        return "REV" if signed_voltage < 0 else "FWD"
+
+    def show_target_voltage(self, signed_voltage: int):
+        """Display the target voltage; the direction is kept while the voltage is zero."""
+        self.target_voltage.set(abs(signed_voltage))
+        if signed_voltage != 0:
+            self.target_direction.set(self._direction_text(signed_voltage))
+
+    def show_actual_voltage(self, signed_voltage: int):
+        """Display the actual voltage; the direction is kept while the voltage is zero."""
+        self.actual_voltage.set(abs(signed_voltage))
+        if signed_voltage != 0:
+            self.actual_direction.set(self._direction_text(signed_voltage))
 
     def reset_buttons(self):
         for btn in self.control_buttons:
@@ -114,7 +135,7 @@ class TrackControl:
         ok, msg = self.callback(message)
 
         if ok:
-            self.target_voltage.set(voltage)
+            self.show_target_voltage(directional_voltage)
             self.reset_buttons()
             button_pressed.config(state="disabled")
         else:
@@ -438,18 +459,20 @@ class TrainController:
         dash_frame = ttk.LabelFrame(
             top_frame, text=f"Track {track_id} Voltage", padding=0)
         dash_frame.pack(side="left", fill="y", padx=0, pady=0)
-        ttk.Label(dash_frame, text="Direction").grid(row=0, column=0)
-        ttk.Label(dash_frame, text="Target").grid(row=0, column=1)
-        ttk.Label(dash_frame, text="Actual").grid(row=0, column=2)
-        track_control.direction_label = ttk.Label(
-            dash_frame, textvariable=track_control.direction, font=DASH_FONT, width=3, justify=tk.CENTER)
-        track_control.direction_label.grid(row=1, column=0, padx=2)
+        ttk.Label(dash_frame, text="Target").grid(row=0, column=0)
+        ttk.Label(dash_frame, text="Actual").grid(row=0, column=1)
         track_control.target_voltage_label = ttk.Label(
             dash_frame, textvariable=track_control.target_voltage, font=DASH_FONT, width=3, justify=tk.RIGHT)
-        track_control.target_voltage_label.grid(row=1, column=1, padx=2)
+        track_control.target_voltage_label.grid(row=1, column=0, padx=2)
         track_control.actual_voltage_label = ttk.Label(
             dash_frame, textvariable=track_control.actual_voltage, font=DASH_FONT, width=3, justify=tk.RIGHT)
-        track_control.actual_voltage_label.grid(row=1, column=2, padx=2)
+        track_control.actual_voltage_label.grid(row=1, column=1, padx=2)
+        track_control.target_direction_label = ttk.Label(
+            dash_frame, textvariable=track_control.target_direction, justify=tk.CENTER)
+        track_control.target_direction_label.grid(row=2, column=0, padx=2)
+        track_control.actual_direction_label = ttk.Label(
+            dash_frame, textvariable=track_control.actual_direction, justify=tk.CENTER)
+        track_control.actual_direction_label.grid(row=2, column=1, padx=2)
 
         control_frame = ttk.Frame(top_frame)
         control_frame.pack(side="left", fill="both", expand=True, padx=0, pady=0)
@@ -833,7 +856,7 @@ class TrainController:
         if message.device_type == DeviceType.ACTUAL_VOLTAGE:
             control = self.controls.get(message.device_id)
             if not control is None:
-                control.actual_voltage.set(abs(message.value))
+                control.show_actual_voltage(message.value)
                 self._update_electrified_segments()
             else:
                 self.set_message("error", f"Unknown track id: {message}")
@@ -841,7 +864,7 @@ class TrainController:
         elif message.device_type == DeviceType.TARGET_VOLTAGE:
             control = self.controls.get(message.device_id)
             if not control is None:
-                control.target_voltage.set(0 if message.value == EMERGENCY_STOP else abs(message.value))
+                control.show_target_voltage(0 if message.value == EMERGENCY_STOP else message.value)
             else:
                 self.set_message("error", f"Unknown track id: {message}")
                 return False, "Unknown device id"
