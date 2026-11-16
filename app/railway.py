@@ -1,6 +1,6 @@
 from time import monotonic, sleep
 from pydantic import BaseModel
-from typing import List, Tuple, Protocol, overload
+from typing import Callable, List, Tuple, Protocol, overload
 from enum import Enum
 from communication import Communicator
 from layout import derive_blocks, validate_layout
@@ -112,7 +112,8 @@ class Layout:
                                        sensor_1_id=speed_trap_data.get("sensor_1_id"),
                                        sensor_2_id=speed_trap_data.get("sensor_2_id"),
                                        distance=speed_trap_data.get("distance"),
-                                       cb=self._on_component_event)
+                                       cb=self._on_component_event,
+                                       direction_provider=self._track_direction_provider(speed_trap_data.get("track_id")))
                 self.add_listener(speed_trap.receive_component_event)
                 self._speed_trap_listeners.append(speed_trap.receive_component_event)
                 self.components[DeviceType.SPEED.name][speed_trap.id] = speed_trap
@@ -159,6 +160,12 @@ class Layout:
         except Exception as exc:
             print(f"Failed to load layout {str(exc)}")
             return False, str(exc)
+
+    def _track_direction_provider(self, track_id: int) -> Callable[[], int]:
+        def direction() -> int:
+            track = self.components[DeviceType.TARGET_VOLTAGE.name].get(track_id)
+            return track.travel_direction if track else 0
+        return direction
 
     def add_listener(self, cb: Callback):
         """Add a listener to layout component events"""
@@ -524,15 +531,19 @@ class Sensor:
 
 
 class SpeedTrap:
-    def __init__(self, id: int, track_id: int, sensor_1_id: int, sensor_2_id: int, distance: float, cb: Callback):
+    def __init__(self, id: int, track_id: int, sensor_1_id: int, sensor_2_id: int, distance: float, cb: Callback,
+                 direction_provider: Callable[[], int] = lambda: 0):
         self.id = id
         self.track_id = track_id
+        # Direction of travel (1, -1, or 0 if unknown) at the time of a sensor event
+        self._direction_provider = direction_provider
         self._sensor_1_id = sensor_1_id
         self._sensor_2_id = sensor_2_id
         self._distance = distance
         self._cb = cb
         self._last_sensor_1_event_time = -1
         self._last_sensor_2_event_time = -1
+        self._last_sensor_1_direction = 0
         self._last_speed = 0
 
     def process_message(self, message: Message) -> Tuple[bool, str]:
@@ -548,9 +559,14 @@ class SpeedTrap:
         message: Message = value
         if message.device_type == DeviceType.SENSOR and message.message_type == MessageType.SET and message.value == 1:
             event_time = int(monotonic() * 1000)
+            direction = self._direction_provider()
             if message.device_id == self._sensor_2_id:
                 self._last_sensor_2_event_time = event_time
-                if self._last_sensor_1_event_time > 0:
+                if self._last_sensor_1_event_time > 0 and direction != self._last_sensor_1_direction:
+                    # Sensors were passed in different directions: reset the trap
+                    self._last_sensor_1_event_time = -1
+                    self._last_sensor_2_event_time = -1
+                elif self._last_sensor_1_event_time > 0:
                     elapsed_time = self._last_sensor_2_event_time - self._last_sensor_1_event_time
                     self._last_speed = (self._distance / elapsed_time) * 1000 # per second
                     cb_message = Message(
@@ -562,6 +578,7 @@ class SpeedTrap:
                     self._cb(cb_message)
             if message.device_id == self._sensor_1_id:
                 self._last_sensor_1_event_time = event_time
+                self._last_sensor_1_direction = direction
 
 
 class Point:

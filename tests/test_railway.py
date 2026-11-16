@@ -250,6 +250,34 @@ def test_speed_trap(fake_factory):
     assert speed_trap.last_speed > 0
 
 
+def test_speed_trap_resets_when_directions_differ():
+    direction = [1]
+    readings = []
+    trap = SpeedTrap(id=1, track_id=1, sensor_1_id=1, sensor_2_id=2, distance=10,
+                     cb=lambda message: readings.append(message), direction_provider=lambda: direction[0])
+
+    def sensor_on(sensor_id):
+        trap.receive_component_event("component", Message(
+            message_type=MessageType.SET, device_type=DeviceType.SENSOR, device_id=sensor_id, value=1))
+
+    sensor_on(1)
+    time.sleep(0.01)
+    direction[0] = -1
+    sensor_on(2)
+    assert trap.last_speed == 0
+    assert not readings
+
+    # the trap was reset, so a lone second sensor event gives no reading either
+    sensor_on(2)
+    assert not readings
+
+    sensor_on(1)
+    time.sleep(0.01)
+    sensor_on(2)
+    assert trap.last_speed > 0
+    assert len(readings) == 1
+
+
 def test_point(fake_factory):
     events = []
 
