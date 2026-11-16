@@ -553,6 +553,18 @@ class SpeedTrap:
     def last_speed(self):
         return self._last_speed
 
+    @property
+    def sensor_1_id(self):
+        return self._sensor_1_id
+
+    @property
+    def sensor_2_id(self):
+        return self._sensor_2_id
+
+    @property
+    def distance(self):
+        return self._distance
+
     def receive_component_event(self, name: str, value: object):
         if name != "component":
             return

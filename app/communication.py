@@ -14,6 +14,7 @@ class Communicator:
     """
     def __init__(self, serial_factory: Optional[Callable[[str], object]] = None, time_to_initialize = 1):
         self._ser = None
+        self.port: Optional[str] = None
         self._reading = False
         self._listeners: List[Callable[[str, object, float], None]] = []
         self._time_to_initialize = time_to_initialize
@@ -45,6 +46,7 @@ class Communicator:
     def connect(self, port: str) -> Tuple[bool, str]:
         try:
             self._ser = self._serial_factory(port)
+            self.port = port
             self._notify("status", "connected", self._time_to_initialize)
             self.start_reading()
             return True, ""

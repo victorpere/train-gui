@@ -1,5 +1,7 @@
 import os
 import configparser
+import threading
+from concurrent.futures import Future
 from typing import Tuple, Protocol
 import tkinter as tk
 from tkinter import ttk
@@ -29,6 +31,25 @@ def save_last_layout_path(layout_path: str):
         save_data_to_file({"last_layout": layout_path}, STATE_FILE)
     except Exception as exc:
         print(f"Failed to save last layout: {exc}")
+
+
+def start_mcp_server(controller):
+    """Starts the MCP server if enabled in the [MCP] config section; returns its thread, or None."""
+    config = configparser.ConfigParser()
+    config.read("config/config.ini")
+    if not config.getboolean("MCP", "enabled", fallback=False):
+        return None
+    try:
+        from mcp_server import LayoutService, McpServerThread
+        server = McpServerThread(LayoutService(controller),
+                                 host=config.get("MCP", "host", fallback="127.0.0.1"),
+                                 port=config.getint("MCP", "port", fallback=8765))
+        server.start()
+        print(f"MCP server listening on {server.url}")
+        return server
+    except Exception as exc:
+        print(f"MCP server not started: {exc}")
+        return None
 
 
 class DiagramConfig:
@@ -410,12 +431,12 @@ class TrainController:
             return
         self.load_layout_file(layout_path)
 
-    def load_layout_file(self, layout_path):
+    def load_layout_file(self, layout_path) -> Tuple[bool, str]:
         try:
             data = load_data_from_file(layout_path)
         except Exception as exc:
             self.set_message("error", str(exc))
-            return
+            return False, str(exc)
 
         previous_data, previous_path = self.layout_data, self.layout_path
         ok, msg = self.layout.load(data)
@@ -429,6 +450,7 @@ class TrainController:
             self.set_message("error", f"Layout failed to load: {msg}")
         self._clear_layout_ui()
         self._build_layout_ui()
+        return ok, "" if ok else f"Layout failed to load: {msg}"
 
     def _build_speed_ui(self, speed_trap_id: int):
         DASH_FONT = tkFont.Font(family="Menlo", size=30)
@@ -686,13 +708,13 @@ class TrainController:
         if len(filepath) > 0:
             self.load_scenario_file(filepath)
 
-    def load_scenario_file(self, scenario_path):
+    def load_scenario_file(self, scenario_path) -> Tuple[bool, str]:
         try:
             from util import load_data_from_file
             data = load_data_from_file(scenario_path)
         except Exception as exc:
             self.set_message("error", str(exc))
-            return
+            return False, str(exc)
 
         ok, msg = self.scenario_runner.load_scenario(data)
         if ok:
@@ -707,6 +729,7 @@ class TrainController:
                 "info", f"Scenario loaded: {data.get('name', self.scenario_runner.scenario.name)}")
         else:
             self.set_message("error", f"Scenario failed to load: {msg}")
+        return ok, "" if ok else f"Scenario failed to load: {msg}"
 
     def _increment_scenario_times(self):
         self.scenario_times.set(self.scenario_times.get() + 1)
@@ -758,42 +781,73 @@ class TrainController:
             self.scenario_toggle_button.config(text="Scenario \u00ab")
         self.scenario_panel_visible = not self.scenario_panel_visible
 
-    def run_scenario(self):
-        if not self.scenario_runner:
+    def run_scenario(self, times=None) -> Tuple[bool, str]:
+        if not self.scenario_runner or not self.scenario_runner.scenario:
             self.set_message("warning", "Load a scenario first")
-            return
+            return False, "Load a scenario first"
         if self.scenario_runner.is_running:
             self.set_message("info", "Scenario already running")
-            return
+            return False, "Scenario already running"
 
+        if times is not None:
+            self.scenario_times.set(times)
+            self._apply_scenario_times()
         self.stop_scenario_button.config(state="normal")
         self.scenario_runner.start()
+        return True, ""
 
-    def stop_scenario(self):
+    def stop_scenario(self) -> Tuple[bool, str]:
         if self.scenario_runner is not None:
             self.scenario_runner.stop()
         self.stop_scenario_button.config(state="disabled")
         self.set_message("warning", "Stopping scenario")
+        return True, ""
 
     def _toggle_test_mode(self):
-        self.layout.test_mode = self.test_mode_var.get()
-        self.set_message("info", "Test mode: points switch without a serial connection"
-                         if self.layout.test_mode else "")
+        self.set_test_mode(self.test_mode_var.get())
 
-    def connect_serial(self):
+    def set_test_mode(self, enabled: bool) -> Tuple[bool, str]:
+        self.test_mode_var.set(enabled)
+        self.layout.test_mode = enabled
+        self.set_message("info", "Test mode: points switch without a serial connection"
+                         if enabled else "")
+        return True, ""
+
+    def connect_serial(self, port=None) -> Tuple[bool, str]:
         self.set_message()
         try:
-            port = self.port_var.get()
-            ok, msg = self.layout.communicator.connect(port)
+            if port:
+                self.port_var.set(port)
+            ok, msg = self.layout.communicator.connect(self.port_var.get())
             if ok:
                 self.connect_button.config(state="disabled")
                 self.status_label.config(text="Connected", foreground="green")
                 self.message_label.config(text="")
-            else:
-                raise RuntimeError(msg)
+                return True, ""
+            raise RuntimeError(msg)
         except Exception as e:
             self.connect_button.config(state="normal")
             self.set_message("error", str(e))
+            return False, str(e)
+
+    def disconnect_serial(self) -> Tuple[bool, str]:
+        self.layout.communicator.disconnect()
+        return True, ""
+
+    def run_on_ui(self, fn, *args, timeout: float = 15):
+        """Runs fn on the Tk thread and returns its result; Tk widgets must not be touched from other threads."""
+        if threading.current_thread() is threading.main_thread():
+            return fn(*args)
+        done: Future = Future()
+
+        def call():
+            try:
+                done.set_result(fn(*args))
+            except Exception as exc:
+                done.set_exception(exc)
+
+        self.root.after(0, call)
+        return done.result(timeout=timeout)
 
     def set_message(self, level="", message=""):
         """Display a message in the message label with a given level (info, warning, error)."""
@@ -942,4 +996,8 @@ if __name__ == "__main__":
     root = tk.Tk()
     app = TrainController(root, layout_data=layout, buttons_data=buttons,
                           layout_path=layout_path)
+
+    mcp_thread = start_mcp_server(app)
     root.mainloop()
+    if mcp_thread:
+        mcp_thread.stop()
