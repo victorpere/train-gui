@@ -231,6 +231,7 @@ class TrainController:
         self.scenario_iteration = tk.StringVar()
         self.scenario_times = tk.IntVar(value=1)
         self._highlighted_step_iid = None
+        self._step_iids: dict[int, str] = {}
 
         self.controls: dict[int, TrackControl] = {}
         self.speed_displays: dict[int, SpeedDisplay] = {}
@@ -346,7 +347,8 @@ class TrainController:
 
         columns = ("number", "action", "device_type", "device_id", "value")
         self.steps_table = ttk.Treeview(
-            steps_frame, columns=columns, show="headings", height=15, selectmode="none")
+            steps_frame, columns=columns, show="tree headings", height=15, selectmode="none")
+        self.steps_table.column("#0", width=20, stretch=False)
         for column, heading, width in (
                 ("number", "#", 40),
                 ("action", "Action", 110),
@@ -743,13 +745,32 @@ class TrainController:
     def _populate_steps_table(self, steps):
         self.steps_table.delete(*self.steps_table.get_children())
         self._highlighted_step_iid = None
-        for index, step in enumerate(steps):
-            self.steps_table.insert("", "end", iid=str(index), values=(
-                index + 1,
+        self._step_iids = {}
+        self._insert_steps("", "", steps)
+
+    def _insert_steps(self, parent_iid, parent_number, steps):
+        for index, step in enumerate(steps, start=1):
+            number = f"{parent_number}.{index}" if parent_number else str(index)
+            device_type = step.device_type or ""
+            if step.action == "DEVICE_CONDITION" and step.operator:
+                device_type = f"{device_type} {step.operator}".strip()
+            elif step.action == "LOOP":
+                parts = []
+                if step.times is not None:
+                    parts.append(f"TIMES: {step.times}")
+                if step.duration is not None:
+                    parts.append(f"DURATION: {step.duration:g}")
+                device_type = "; ".join(parts)
+            self.steps_table.insert(parent_iid, "end", iid=number, open=True, values=(
+                number,
                 step.action,
-                step.device_type or "",
+                device_type,
                 "" if step.device_id is None else step.device_id,
                 step.value))
+            # Steps can be textually identical, so key on object identity.
+            self._step_iids[id(step)] = number
+            if step.steps:
+                self._insert_steps(number, number, step.steps)
 
     def _highlight_step(self, step):
         if self._highlighted_step_iid is not None:
@@ -757,14 +778,11 @@ class TrainController:
             self._highlighted_step_iid = None
         if step is None:
             return
-        # Steps can be textually identical, so match on object identity.
-        for index, candidate in enumerate(self.scenario_runner.scenario.steps):
-            if candidate is step:
-                iid = str(index)
-                self.steps_table.item(iid, tags=("current",))
-                self.steps_table.see(iid)
-                self._highlighted_step_iid = iid
-                break
+        iid = self._step_iids.get(id(step))
+        if iid is not None:
+            self.steps_table.item(iid, tags=("current",))
+            self.steps_table.see(iid)
+            self._highlighted_step_iid = iid
 
     def _toggle_scenario_panel(self):
         if self.scenario_panel_visible:
