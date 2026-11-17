@@ -497,3 +497,23 @@ def test_track_direction_resolves_which_block_is_left(fake_factory):
     set_sensor(1)
     set_sensor(0)
     assert blocks[1].occupied and not blocks[3].occupied
+
+
+def test_track_query_target_voltage(fake_factory):
+    layout = Layout(Communicator(serial_factory=fake_factory, time_to_initialize=0))
+    layout.load(layout_data)
+    layout.test_mode = True
+
+    def query():
+        return layout.command(Message(
+            message_type=MessageType.QUERY, device_type=DeviceType.TARGET_VOLTAGE, device_id=1, value=0))
+
+    assert query() == (True, "0")
+
+    # the target voltage is reported independently of the actual voltage
+    track: Track = layout.components[DeviceType.TARGET_VOLTAGE.name][1]
+    track.set_voltage(42)
+    ok, msg = layout.command(Message(
+        message_type=MessageType.SET, device_type=DeviceType.ACTUAL_VOLTAGE, device_id=1, value=13))
+    assert ok, msg
+    assert query() == (True, "42")

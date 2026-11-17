@@ -461,6 +461,9 @@ class Track:
         if message.message_type == MessageType.QUERY and message.device_type == DeviceType.ACTUAL_VOLTAGE:
             return True, str(self._actual_voltage)
 
+        if message.message_type == MessageType.QUERY and message.device_type == DeviceType.TARGET_VOLTAGE:
+            return True, str(self._target_voltage)
+
         return False, "Unknown message"
 
 

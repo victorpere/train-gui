@@ -6,7 +6,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../a
 
 from communication import Communicator
 from scenario import ScenarioRunner
-from railway import Layout, DeviceType
+from railway import Layout, DeviceType, MessageType
 from util import encode_message
 from fake_serial import FakeSerial
 
@@ -154,3 +154,35 @@ def test_step_name():
 
     step1 = runner.scenario.steps[0]
     assert step1.name == "DEVICE_SET:TARGET_VOLTAGE:0:45"
+
+
+def test_device_adjust_adds_to_current_value():
+    communicator = Communicator(serial_factory=factory, time_to_initialize=0)
+    layout = Layout(communicator)
+    layout.load(layout_data)
+    communicator.connect("/dev/fake")
+
+    runner = ScenarioRunner(layout)
+    ok, msg = runner.load_scenario({
+        "name": "adjust",
+        "description": "adjust target voltage",
+        "times": 1,
+        "steps": [
+            "DEVICE_SET:TARGET_VOLTAGE:1:100",
+            "DEVICE_ADJUST:TARGET_VOLTAGE:1:-5",
+        ],
+    })
+    assert ok, msg
+
+    sets = []
+    original_command = layout.command
+
+    def recording_command(message):
+        if message.message_type == MessageType.SET:
+            sets.append(message.value)
+        return original_command(message)
+
+    layout.command = recording_command
+
+    assert runner.run()
+    assert sets == [100, 95]

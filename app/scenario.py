@@ -10,6 +10,7 @@ class ScenarioAction(Enum):
     DEVICE_WAIT = 0
     DEVICE_SET = 1
     TIME_WAIT = 2
+    DEVICE_ADJUST = 3
 
 
 class ScenarioStep(BaseModel):
@@ -141,6 +142,26 @@ class ScenarioRunner:
                 time.sleep(0.05)
             if self._stop_requested:
                 raise InterruptedError("Scenario stopped")
+            return
+
+        if step.action == ScenarioAction.DEVICE_ADJUST.name:
+            device_type = DeviceType[step.device_type]
+            ok, msg = self.layout.command(Message(
+                message_type = MessageType.QUERY,
+                device_type = device_type,
+                device_id = step.device_id,
+                value = 0
+            ))
+            if not ok:
+                raise RuntimeError(msg)
+            ok, msg = self.layout.command(Message(
+                message_type = MessageType.SET,
+                device_type = device_type,
+                device_id = step.device_id,
+                value = int(msg) + step.value
+            ))
+            if not ok:
+                raise RuntimeError(msg)
             return
 
         print("Unsupported step")
