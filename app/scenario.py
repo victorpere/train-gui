@@ -174,16 +174,29 @@ class ScenarioRunner:
             )
             target_value = step.value
             target_reached = False
-            while not self._stop_requested and not target_reached:
-                self._check_deadlines()
-                ok, msg = self.layout.command(message)
-                if not ok:
-                    raise Exception(msg)
-                actual_value = int(msg)
-                if actual_value == target_value:
-                    target_reached = True
-                else:
-                    time.sleep(0.05)
+            # A sensor latches the target value, so a pulse shorter than the poll interval is not missed
+            sensor = None
+            latch = None
+            if step.device_type == DeviceType.SENSOR.name:
+                sensor = self.layout.components.get(DeviceType.SENSOR.name, {}).get(step.device_id)
+                if sensor is not None:
+                    latch = sensor.watch(target_value)
+            try:
+                while not self._stop_requested and not target_reached:
+                    self._check_deadlines()
+                    ok, msg = self.layout.command(message)
+                    if not ok:
+                        raise Exception(msg)
+                    actual_value = int(msg)
+                    if actual_value == target_value:
+                        target_reached = True
+                    elif latch is not None:
+                        target_reached = latch.wait(0.05)
+                    else:
+                        time.sleep(0.05)
+            finally:
+                if sensor is not None:
+                    sensor.unwatch(latch)
             if self._stop_requested:
                 raise InterruptedError("Scenario stopped")
             return
@@ -228,7 +241,6 @@ class ScenarioRunner:
             if not ok:
                 raise RuntimeError(msg)
             if CONDITION_OPERATORS[step.operator](int(msg), step.value):
-                print(f"{int(msg)} {step.operator} {step.value}")
                 for nested_step in step.steps:
                     if self._stop_requested:
                         raise InterruptedError("Scenario stopped")

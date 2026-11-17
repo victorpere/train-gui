@@ -1,3 +1,4 @@
+from threading import Event, Lock
 from time import monotonic, sleep
 from pydantic import BaseModel
 from typing import Callable, List, Tuple, Protocol, overload
@@ -512,10 +513,29 @@ class Sensor:
         self.node = node
         self._on: bool = False
         self.ON_THRESHOLD = 1
+        self._watchers: List[Tuple[int, Event]] = []
+        self._watchers_lock = Lock()
 
     @property
     def on(self):
         return self._on
+
+    def watch(self, target_value: int) -> Event:
+        """Returns an event that is latched when the sensor changes to target_value, even if it changes back right away"""
+        event = Event()
+        with self._watchers_lock:
+            self._watchers.append((target_value, event))
+        return event
+
+    def unwatch(self, event: Event):
+        with self._watchers_lock:
+            self._watchers = [watcher for watcher in self._watchers if watcher[1] is not event]
+
+    def _latch_watchers(self):
+        with self._watchers_lock:
+            for target_value, event in self._watchers:
+                if target_value == int(self._on):
+                    event.set()
 
     def process_message(self, message: Message) -> Tuple[bool, str]:
         if message.message_type == MessageType.SET and message.device_type == DeviceType.SENSOR:
@@ -523,11 +543,13 @@ class Sensor:
                 if self._on:
                     return False, f"Sensonf {self.id} is already on"
                 self._on = True
+                self._latch_watchers()
                 return self._cb(message)
             else:
                 if not self._on:
                     return False, f"Sensor {self.id} is lready off"
                 self._on = False
+                self._latch_watchers()
                 return self._cb(message)
         elif message.message_type == MessageType.QUERY and message.device_type == DeviceType.SENSOR:
             return True, int(self.on)
