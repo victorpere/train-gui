@@ -278,6 +278,33 @@ def test_speed_trap_resets_when_directions_differ():
     assert len(readings) == 1
 
 
+def test_speed_trap_query():
+    trap = SpeedTrap(id=1, track_id=1, sensor_1_id=1, sensor_2_id=2, distance=10, cb=lambda message: None)
+    query = Message(message_type=MessageType.QUERY, device_type=DeviceType.SPEED, device_id=1, value=0)
+
+    ok, value = trap.process_message(query)
+    assert ok
+    assert value == 0
+
+    def sensor_on(sensor_id):
+        trap.receive_component_event("component", Message(
+            message_type=MessageType.SET, device_type=DeviceType.SENSOR, device_id=sensor_id, value=1))
+
+    sensor_on(1)
+    time.sleep(0.01)
+    sensor_on(2)
+
+    ok, value = trap.process_message(query)
+    assert ok
+    assert value == trap.last_speed
+    assert value > 0
+
+    # other message types are still not handled
+    ok, _ = trap.process_message(Message(
+        message_type=MessageType.SET, device_type=DeviceType.SPEED, device_id=1, value=0))
+    assert not ok
+
+
 def test_point(fake_factory):
     events = []
 

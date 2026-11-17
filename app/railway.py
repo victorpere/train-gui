@@ -550,6 +550,9 @@ class SpeedTrap:
         self._last_speed = 0
 
     def process_message(self, message: Message) -> Tuple[bool, str]:
+        if message.message_type == MessageType.QUERY:
+            return True, self._last_speed
+        
         return False, ""
 
     @property
