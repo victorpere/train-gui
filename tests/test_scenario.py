@@ -186,3 +186,67 @@ def test_device_adjust_adds_to_current_value():
 
     assert runner.run()
     assert sets == [100, 95]
+
+
+def _run_condition(operator, value, voltage=100):
+    communicator = Communicator(serial_factory=factory, time_to_initialize=0)
+    layout = Layout(communicator)
+    layout.load(layout_data)
+    communicator.connect("/dev/fake")
+
+    runner = ScenarioRunner(layout)
+    ok, msg = runner.load_scenario({
+        "name": "condition",
+        "description": "conditional adjust",
+        "times": 1,
+        "steps": [
+            f"DEVICE_SET:TARGET_VOLTAGE:1:{voltage}",
+            {
+                "action": "DEVICE_CONDITION",
+                "device_type": "TARGET_VOLTAGE",
+                "device_id": 1,
+                "value": value,
+                "operator": operator,
+                "steps": ["DEVICE_ADJUST:TARGET_VOLTAGE:1:-5"],
+            },
+        ],
+    })
+    assert ok, msg
+
+    sets = []
+    original_command = layout.command
+
+    def recording_command(message):
+        if message.message_type == MessageType.SET:
+            sets.append(message.value)
+        return original_command(message)
+
+    layout.command = recording_command
+    assert runner.run()
+    return sets
+
+
+def test_device_condition_runs_steps_when_true():
+    assert _run_condition("GT", 50) == [100, 95]
+    assert _run_condition("GE", 100) == [100, 95]
+    assert _run_condition("EQ", 100) == [100, 95]
+    assert _run_condition("NE", 50) == [100, 95]
+    assert _run_condition("LT", 150) == [100, 95]
+    assert _run_condition("LE", 100) == [100, 95]
+
+
+def test_device_condition_skips_steps_when_false():
+    assert _run_condition("GT", 100) == [100]
+    assert _run_condition("LT", 100) == [100]
+    assert _run_condition("EQ", 50) == [100]
+
+
+def test_device_condition_requires_valid_operator_and_steps():
+    runner = ScenarioRunner(Layout(Communicator(serial_factory=factory, time_to_initialize=0)))
+    step = {"action": "DEVICE_CONDITION", "device_type": "SPEED", "device_id": 1, "value": 1}
+    ok, _ = runner.load_scenario({"name": "x", "description": "x", "times": 1,
+                                  "steps": [{**step, "operator": "XX", "steps": ["TIME_WAIT:::1"]}]})
+    assert not ok
+    ok, _ = runner.load_scenario({"name": "x", "description": "x", "times": 1,
+                                  "steps": [{**step, "operator": "GT"}]})
+    assert not ok

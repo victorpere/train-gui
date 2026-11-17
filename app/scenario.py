@@ -1,3 +1,4 @@
+import operator
 import time
 from pydantic import BaseModel, model_validator
 from threading import Thread
@@ -11,6 +12,17 @@ class ScenarioAction(Enum):
     DEVICE_SET = 1
     TIME_WAIT = 2
     DEVICE_ADJUST = 3
+    DEVICE_CONDITION = 4
+
+
+CONDITION_OPERATORS = {
+    "EQ": operator.eq,
+    "GT": operator.gt,
+    "GE": operator.ge,
+    "LT": operator.lt,
+    "LE": operator.le,
+    "NE": operator.ne,
+}
 
 
 class ScenarioStep(BaseModel):
@@ -18,6 +30,18 @@ class ScenarioStep(BaseModel):
     device_type: Optional[str] = None
     device_id: Optional[int] = None
     value: int
+    operator: Optional[str] = None
+    steps: Optional[List["ScenarioStep"]] = None
+
+    @model_validator(mode="after")
+    def _validate_condition(self):
+        if self.action == ScenarioAction.DEVICE_CONDITION.name:
+            if self.operator not in CONDITION_OPERATORS:
+                raise ValueError(
+                    f"DEVICE_CONDITION operator must be one of {', '.join(CONDITION_OPERATORS)}")
+            if not self.steps:
+                raise ValueError("DEVICE_CONDITION requires a non-empty list of steps")
+        return self
 
     @model_validator(mode="before")
     @classmethod
@@ -162,6 +186,22 @@ class ScenarioRunner:
             ))
             if not ok:
                 raise RuntimeError(msg)
+            return
+
+        if step.action == ScenarioAction.DEVICE_CONDITION.name:
+            ok, msg = self.layout.command(Message(
+                message_type = MessageType.QUERY,
+                device_type = DeviceType[step.device_type],
+                device_id = step.device_id,
+                value = 0
+            ))
+            if not ok:
+                raise RuntimeError(msg)
+            if CONDITION_OPERATORS[step.operator](int(msg), step.value):
+                for nested_step in step.steps:
+                    if self._stop_requested:
+                        raise InterruptedError("Scenario stopped")
+                    self._run_step(nested_step)
             return
 
         print("Unsupported step")
