@@ -15,7 +15,6 @@ BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 LAYOUT_DIR = os.path.join(BASE_DIR, "data", "layouts")
 SCENARIO_DIR = os.path.join(BASE_DIR, "data", "scenarios")
 DATA_EXTENSIONS = (".json", ".yaml", ".yml")
-SCALED_KMH_PER_RAW_SPEED = 0.0036  # the GUI shows raw speed * layout scale * this, in km/h
 
 # Tool-facing device type names and the component group each one lives in
 DEVICE_GROUPS = {
@@ -92,12 +91,9 @@ class LayoutService:
                     "direction_name": "PRIMARY" if device.direction == 0 else "SECONDARY",
                     "direction_segments": list(device.direction_segments)}
         if kind == "speed_trap":
-            raw = int(device.last_speed)
-            scale = getattr(self._layout, "scale", 0)
             return {"id": device.id, "track_id": device.track_id,
                     "sensor_1_id": device.sensor_1_id, "sensor_2_id": device.sensor_2_id,
-                    "distance": device.distance, "last_speed": raw,
-                    "last_speed_scaled_kmh": raw * scale * SCALED_KMH_PER_RAW_SPEED}
+                    "distance": device.distance, "last_speed_kmh": device.last_speed}
         raise ValueError(kind)
 
     def _kind(self, device_type: str) -> str:

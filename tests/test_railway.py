@@ -278,6 +278,24 @@ def test_speed_trap_resets_when_directions_differ():
     assert len(readings) == 1
 
 
+def test_speed_trap_reports_scaled_kmh():
+    readings = []
+    trap = SpeedTrap(id=1, track_id=1, sensor_1_id=1, sensor_2_id=2, distance=1000,
+                     cb=lambda message: readings.append(message), scale=160)
+
+    def sensor_on(sensor_id):
+        trap.receive_component_event("component", Message(
+            message_type=MessageType.SET, device_type=DeviceType.SENSOR, device_id=sensor_id, value=1))
+
+    sensor_on(1)
+    time.sleep(0.01)
+    sensor_on(2)
+
+    # 1000 units over ~10 ms is ~100000 units/s; km/h = units/s * scale * 0.0036
+    assert readings[0].value == trap.last_speed
+    assert 0 < trap.last_speed < 1000 * 1000 * 160 * 0.0036 / 10
+
+
 def test_speed_trap_query():
     trap = SpeedTrap(id=1, track_id=1, sensor_1_id=1, sensor_2_id=2, distance=10, cb=lambda message: None)
     query = Message(message_type=MessageType.QUERY, device_type=DeviceType.SPEED, device_id=1, value=0)

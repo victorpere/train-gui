@@ -951,10 +951,7 @@ class TrainController:
         elif message.device_type == DeviceType.SPEED:
             speed_display = self.speed_displays.get(message.device_id)
             if not speed_display is None:
-                # convert to scale in km/h
-                speed: float = float(message.value) * \
-                    self.layout.scale * 0.0036
-                speed_display.last_speed.set(speed)
+                speed_display.last_speed.set(float(message.value))
         elif message.device_type == DeviceType.BLOCK:
             self._update_block_diagram(message.device_id)
         elif message.device_type == DeviceType.SENSOR:

@@ -32,7 +32,7 @@ class Message(BaseModel):
     message_type: MessageType
     device_type: DeviceType
     device_id: int
-    value: int
+    value: int | float
 
 
 class LayoutComponent(Protocol):
@@ -112,6 +112,7 @@ class Layout:
                                        sensor_1_id=speed_trap_data.get("sensor_1_id"),
                                        sensor_2_id=speed_trap_data.get("sensor_2_id"),
                                        distance=speed_trap_data.get("distance"),
+                                       scale=self.scale,
                                        cb=self._on_component_event,
                                        direction_provider=self._track_direction_provider(speed_trap_data.get("track_id")))
                 self.add_listener(speed_trap.receive_component_event)
@@ -534,9 +535,14 @@ class Sensor:
 
 
 class SpeedTrap:
+    """Measures speed between two sensors. Speed is always reported in km/h, scaled by the layout scale."""
+    # distance is in layout units (mm); km/h = units/s * 0.0036 * scale
+    KMH_PER_UNIT_PER_SECOND = 0.0036
+
     def __init__(self, id: int, track_id: int, sensor_1_id: int, sensor_2_id: int, distance: float, cb: Callback,
-                 direction_provider: Callable[[], int] = lambda: 0):
+                 direction_provider: Callable[[], int] = lambda: 0, scale: float = 1):
         self.id = id
+        self._scale = scale
         self.track_id = track_id
         # Direction of travel (1, -1, or 0 if unknown) at the time of a sensor event
         self._direction_provider = direction_provider
@@ -586,12 +592,13 @@ class SpeedTrap:
                     self._last_sensor_2_event_time = -1
                 elif self._last_sensor_1_event_time > 0:
                     elapsed_time = self._last_sensor_2_event_time - self._last_sensor_1_event_time
-                    self._last_speed = (self._distance / elapsed_time) * 1000 # per second
+                    units_per_second = (self._distance / elapsed_time) * 1000
+                    self._last_speed = units_per_second * self._scale * self.KMH_PER_UNIT_PER_SECOND
                     cb_message = Message(
                         message_type=MessageType.SET,
                         device_type=DeviceType.SPEED,
                         device_id=self.id,
-                        value=int(self._last_speed)
+                        value=self._last_speed
                     )
                     self._cb(cb_message)
             if message.device_id == self._sensor_1_id:

@@ -97,7 +97,7 @@ def test_layout_state_reports_every_device_type(service):
     assert state["points"][0]["direction_name"] == "PRIMARY"
     assert {block["id"]: block["occupied"] for block in state["blocks"]} == {1: False, 3: True}
     assert state["sensors"][0]["on"] is False
-    assert state["speed_traps"][0]["last_speed"] == 0
+    assert state["speed_traps"][0]["last_speed_kmh"] == 0
     assert state["scenario"]["loaded"] is False
 
 
