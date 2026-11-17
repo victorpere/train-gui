@@ -13,6 +13,7 @@ class ScenarioAction(Enum):
     TIME_WAIT = 2
     DEVICE_ADJUST = 3
     DEVICE_CONDITION = 4
+    LOOP = 5
 
 
 CONDITION_OPERATORS = {
@@ -25,12 +26,22 @@ CONDITION_OPERATORS = {
 }
 
 
+class _LoopTimeout(Exception):
+    """Raised inside a blocking step when the deadline of an enclosing LOOP is reached."""
+
+    def __init__(self, deadline: float):
+        super().__init__("Loop duration reached")
+        self.deadline = deadline
+
+
 class ScenarioStep(BaseModel):
     action: str
     device_type: Optional[str] = None
     device_id: Optional[int] = None
-    value: int
+    value: int = 0
     operator: Optional[str] = None
+    times: Optional[int] = None
+    duration: Optional[float] = None
     steps: Optional[List["ScenarioStep"]] = None
 
     @model_validator(mode="after")
@@ -41,6 +52,15 @@ class ScenarioStep(BaseModel):
                     f"DEVICE_CONDITION operator must be one of {', '.join(CONDITION_OPERATORS)}")
             if not self.steps:
                 raise ValueError("DEVICE_CONDITION requires a non-empty list of steps")
+        if self.action == ScenarioAction.LOOP.name:
+            if self.times is None and self.duration is None:
+                raise ValueError("LOOP requires at least one of times or duration")
+            if self.times is not None and self.times < 1:
+                raise ValueError("LOOP times must be at least 1")
+            if self.duration is not None and self.duration <= 0:
+                raise ValueError("LOOP duration must be greater than 0")
+            if not self.steps:
+                raise ValueError("LOOP requires a non-empty list of steps")
         return self
 
     @model_validator(mode="before")
@@ -89,6 +109,7 @@ class ScenarioRunner:
         self.layout = layout
         self.scenario = None
         self._stop_requested = False
+        self._deadlines: List[float] = []
         self._thread = None
         self._listeners: List[Callable[[str, object], None]] = []
 
@@ -123,6 +144,13 @@ class ScenarioRunner:
     def _stop(self):
         self.layout.stop_all()
 
+    def _check_deadlines(self):
+        """Abort the current blocking step if an enclosing LOOP has run out of time."""
+        now = time.monotonic()
+        for deadline in self._deadlines:
+            if now >= deadline:
+                raise _LoopTimeout(deadline)
+
     def _run_step(self, step: ScenarioStep):
         if step.action == ScenarioAction.DEVICE_SET.name:
             message = Message(
@@ -147,6 +175,7 @@ class ScenarioRunner:
             target_value = step.value
             target_reached = False
             while not self._stop_requested and not target_reached:
+                self._check_deadlines()
                 ok, msg = self.layout.command(message)
                 if not ok:
                     raise Exception(msg)
@@ -163,6 +192,7 @@ class ScenarioRunner:
             wait_ms = step.value
             end = time.monotonic() + (wait_ms / 1000.0)
             while not self._stop_requested and time.monotonic() < end:
+                self._check_deadlines()
                 time.sleep(0.05)
             if self._stop_requested:
                 raise InterruptedError("Scenario stopped")
@@ -198,10 +228,34 @@ class ScenarioRunner:
             if not ok:
                 raise RuntimeError(msg)
             if CONDITION_OPERATORS[step.operator](int(msg), step.value):
+                print(f"{int(msg)} {step.operator} {step.value}")
                 for nested_step in step.steps:
                     if self._stop_requested:
                         raise InterruptedError("Scenario stopped")
                     self._run_step(nested_step)
+            return
+
+        if step.action == ScenarioAction.LOOP.name:
+            deadline = None if step.duration is None else time.monotonic() + step.duration
+            if deadline is not None:
+                self._deadlines.append(deadline)
+            try:
+                iteration = 0
+                while step.times is None or iteration < step.times:
+                    if deadline is not None and time.monotonic() >= deadline:
+                        break
+                    iteration += 1
+                    for nested_step in step.steps:
+                        if self._stop_requested:
+                            raise InterruptedError("Scenario stopped")
+                        self._check_deadlines()
+                        self._run_step(nested_step)
+            except _LoopTimeout as timeout:
+                if timeout.deadline != deadline:
+                    raise
+            finally:
+                if deadline is not None:
+                    self._deadlines.pop()
             return
 
         print("Unsupported step")

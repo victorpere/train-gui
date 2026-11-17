@@ -250,3 +250,49 @@ def test_device_condition_requires_valid_operator_and_steps():
     ok, _ = runner.load_scenario({"name": "x", "description": "x", "times": 1,
                                   "steps": [{**step, "operator": "GT"}]})
     assert not ok
+
+
+def _loop_runner(loop_step):
+    communicator = Communicator(serial_factory=factory, time_to_initialize=0)
+    layout = Layout(communicator)
+    layout.load(layout_data)
+    communicator.connect("/dev/fake")
+    runner = ScenarioRunner(layout)
+    ok, msg = runner.load_scenario({"name": "loop", "description": "loop", "times": 1,
+                                    "steps": ["DEVICE_SET:TARGET_VOLTAGE:1:100", loop_step]})
+    return runner, ok, msg, layout
+
+
+def test_loop_runs_nested_steps_times():
+    runner, ok, msg, layout = _loop_runner({
+        "action": "LOOP", "times": 3, "steps": ["DEVICE_ADJUST:TARGET_VOLTAGE:1:-5"]})
+    assert ok, msg
+    sets = []
+    original_command = layout.command
+
+    def recording_command(message):
+        if message.message_type == MessageType.SET:
+            sets.append(message.value)
+        return original_command(message)
+
+    layout.command = recording_command
+    assert runner.run()
+    assert sets == [100, 95, 90, 85]
+
+
+def test_loop_ends_at_duration_even_during_blocking_step():
+    runner, ok, msg, _ = _loop_runner({
+        "action": "LOOP", "times": 100, "duration": 0.3, "steps": ["TIME_WAIT:::10000"]})
+    assert ok, msg
+    start = time.monotonic()
+    assert runner.run()
+    assert time.monotonic() - start < 2
+
+
+def test_loop_requires_times_or_duration_and_steps():
+    runner = ScenarioRunner(Layout(Communicator(serial_factory=factory, time_to_initialize=0)))
+    for step in ({"action": "LOOP", "steps": ["TIME_WAIT:::1"]},
+                 {"action": "LOOP", "times": 2},
+                 {"action": "LOOP", "times": 0, "steps": ["TIME_WAIT:::1"]}):
+        ok, _ = runner.load_scenario({"name": "x", "description": "x", "times": 1, "steps": [step]})
+        assert not ok
