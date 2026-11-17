@@ -33,23 +33,14 @@ def save_last_layout_path(layout_path: str):
         print(f"Failed to save last layout: {exc}")
 
 
-def start_mcp_server(controller):
-    """Starts the MCP server if enabled in the [MCP] config section; returns its thread, or None."""
+def create_mcp_server(controller):
+    """Creates (without starting) the MCP server using the [MCP] host and port from the config."""
+    from mcp_server import LayoutService, McpServerThread
     config = configparser.ConfigParser()
     config.read("config/config.ini")
-    if not config.getboolean("MCP", "enabled", fallback=False):
-        return None
-    try:
-        from mcp_server import LayoutService, McpServerThread
-        server = McpServerThread(LayoutService(controller),
-                                 host=config.get("MCP", "host", fallback="127.0.0.1"),
-                                 port=config.getint("MCP", "port", fallback=8765))
-        server.start()
-        print(f"MCP server listening on {server.url}")
-        return server
-    except Exception as exc:
-        print(f"MCP server not started: {exc}")
-        return None
+    return McpServerThread(LayoutService(controller),
+                           host=config.get("MCP", "host", fallback="127.0.0.1"),
+                           port=config.getint("MCP", "port", fallback=8765))
 
 
 class DiagramConfig:
@@ -247,6 +238,7 @@ class TrainController:
         self.segments: dict[int, Tuple[str, int]] = {}
         self.block_items: dict[int, list[int]] = {}
 
+        self.mcp_server = None
         self.diagram_config = DiagramConfig()
         self.build_ui()
 
@@ -274,6 +266,10 @@ class TrainController:
         self.test_mode_var = tk.BooleanVar(value=self.layout.test_mode)
         ttk.Checkbutton(conn_frame, text="Test Mode", variable=self.test_mode_var,
                         command=self._toggle_test_mode).grid(row=0, column=4, columnspan=2, sticky="w", pady=(5, 0))
+
+        self.mcp_button = ttk.Button(
+            conn_frame, text="Start MCP", command=self.toggle_mcp_server)
+        self.mcp_button.grid(row=0, column=6, padx=5)
 
         layout_file_frame = ttk.LabelFrame(self.left_frame, padding=10)
         layout_file_frame.pack(fill="x", padx=10, pady=5)
@@ -813,6 +809,30 @@ class TrainController:
                          if enabled else "")
         return True, ""
 
+    def toggle_mcp_server(self):
+        if self.mcp_server:
+            self.stop_mcp_server()
+        else:
+            self.start_mcp_server()
+
+    def start_mcp_server(self):
+        try:
+            server = create_mcp_server(self)
+            server.start()
+        except Exception as exc:
+            self.set_message("error", f"MCP server not started: {exc}")
+            return
+        self.mcp_server = server
+        self.mcp_button.config(text="Stop MCP")
+        self.set_message("info", f"MCP server listening on {server.url}")
+
+    def stop_mcp_server(self):
+        if self.mcp_server:
+            self.mcp_server.stop()
+            self.mcp_server = None
+        self.mcp_button.config(text="Start MCP")
+        self.set_message("info", "MCP server stopped")
+
     def connect_serial(self, port=None) -> Tuple[bool, str]:
         self.set_message()
         try:
@@ -997,7 +1017,6 @@ if __name__ == "__main__":
     app = TrainController(root, layout_data=layout, buttons_data=buttons,
                           layout_path=layout_path)
 
-    mcp_thread = start_mcp_server(app)
     root.mainloop()
-    if mcp_thread:
-        mcp_thread.stop()
+    if app.mcp_server:
+        app.mcp_server.stop()

@@ -23,16 +23,15 @@ python3 app/layout_editor.py [data/layouts/layout01.json]
 
 The GUI can expose the layout and its devices to MCP clients (e.g. Copilot, Claude). The server runs inside the GUI
 process, so it shares the live layout and serial connection. It requires the `mcp` package (Python 3.10+) and is off by
-default; enable it in `config/config.ini`:
+default; use the **Start MCP** / **Stop MCP** button in the GUI to toggle it. The address is set in `config/config.ini`:
 
 ```ini
 [MCP]
-enabled=true
 host=127.0.0.1
 port=8765
 ```
 
-Then start the GUI and point the client at `http://127.0.0.1:8765/mcp` (streamable HTTP), e.g. in VS Code `mcp.json`:
+Then start the server and point the client at `http://127.0.0.1:8765/mcp` (streamable HTTP), e.g. in VS Code `mcp.json`:
 
 ```json
 { "servers": { "train-gui": { "type": "http", "url": "http://127.0.0.1:8765/mcp" } } }
