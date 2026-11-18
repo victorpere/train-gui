@@ -3,6 +3,8 @@ import os
 import sys
 import time
 
+import pytest
+
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../app")))
 
 from communication import Communicator
@@ -299,35 +301,36 @@ def test_loop_requires_times_or_duration_and_steps():
         assert not ok
 
 
-def test_device_wait_catches_sensor_pulse_between_polls():
+@pytest.mark.parametrize("device_type,step,away,target", [
+    (DeviceType.SENSOR, "DEVICE_WAIT:SENSOR:1:1", 0, 1),
+    (DeviceType.POINT_DIRECTION, "DEVICE_WAIT:POINT_DIRECTION:1:1", 0, 1),
+])
+def test_device_wait_catches_pulse_between_polls(device_type, step, away, target):
     communicator = Communicator(serial_factory=factory, time_to_initialize=0)
     layout = Layout(communicator)
     with open(os.path.join(os.path.dirname(__file__), "data/test_layout01.json")) as f:
         layout.load(json.load(f))
     communicator.connect("/dev/fake")
-    sensor = layout.components[DeviceType.SENSOR.name][1]
     runner = ScenarioRunner(layout)
-    ok, msg = runner.load_scenario({"name": "pulse", "description": "pulse", "times": 1,
-                                    "steps": ["DEVICE_WAIT:SENSOR:1:1"]})
+    ok, msg = runner.load_scenario({"name": "pulse", "description": "pulse", "times": 1, "steps": [step]})
     assert ok, msg
 
     original_command = layout.command
-    queries = []
+    fired = []
 
     def pulsing_command(message):
         result = original_command(message)
-        if message.message_type == MessageType.QUERY and message.device_type == DeviceType.SENSOR:
-            queries.append(result)
-            if len(queries) == 1:
-                # the sensor turns on and off again before the next poll
-                for value in (1, 0):
-                    sensor.process_message(Message(message_type=MessageType.SET,
-                                                   device_type=DeviceType.SENSOR, device_id=1, value=value))
+        if not fired and message.message_type == MessageType.QUERY and message.device_type == device_type:
+            fired.append(True)
+            # the device reaches the target and leaves it again before the next poll
+            for value in (target, away):
+                original_command(Message(message_type=MessageType.SET, device_type=device_type,
+                                         device_id=1, value=value))
         return result
 
     layout.command = pulsing_command
     start = time.monotonic()
     assert runner.run()
-    assert not sensor.on
+    assert fired
     assert time.monotonic() - start < 2
-    assert sensor._watchers == []
+    assert layout._watchers == []

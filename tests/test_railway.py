@@ -103,6 +103,47 @@ def test_track_write_and_read(fake_factory):
                and e[1].value == 13)
 
 
+def _set_message(device_type, value):
+    return Message(message_type=MessageType.SET, device_type=device_type, device_id=1, value=value)
+
+
+def test_layout_watch_latches_change_and_unregisters(fake_factory):
+    communicator = Communicator(serial_factory=fake_factory, time_to_initialize=0)
+    layout = Layout(communicator)
+    layout.load(layout_data)
+    communicator.connect("/dev/fake")
+
+    with layout.watch(DeviceType.SENSOR, 1, 1) as latch:
+        assert not latch.is_set()
+        # a change to a different value does not latch
+        layout.command(_set_message(DeviceType.SENSOR, 0))
+        assert not latch.is_set()
+        layout.command(_set_message(DeviceType.SENSOR, 1))
+        layout.command(_set_message(DeviceType.SENSOR, 0))
+        assert latch.is_set()
+        assert not layout.components[DeviceType.SENSOR.name][1].on
+    assert layout._watchers == []
+
+
+def test_layout_watch_unregisters_on_exception(fake_factory):
+    layout = Layout(Communicator(serial_factory=fake_factory, time_to_initialize=0))
+    with pytest.raises(RuntimeError):
+        with layout.watch(DeviceType.POINT_DIRECTION, 1, 1):
+            raise RuntimeError("boom")
+    assert layout._watchers == []
+
+
+def test_layout_watch_point_skip_check_counts_as_point_direction(fake_factory):
+    communicator = Communicator(serial_factory=fake_factory, time_to_initialize=0)
+    layout = Layout(communicator)
+    layout.load(layout_data)
+    communicator.connect("/dev/fake")
+
+    with layout.watch(DeviceType.POINT_DIRECTION, 1, 1) as latch:
+        layout.command(_set_message(DeviceType.POINT_DIRECTION_SKIP_CHECK, 1))
+        assert latch.is_set()
+
+
 def test_sensor_read(fake_factory):
     events = []
 

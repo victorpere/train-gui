@@ -173,15 +173,10 @@ class ScenarioRunner:
                 value = 0
             )
             target_value = step.value
+            device_type = DeviceType[step.device_type]
             target_reached = False
-            # A sensor latches the target value, so a pulse shorter than the poll interval is not missed
-            sensor = None
-            latch = None
-            if step.device_type == DeviceType.SENSOR.name:
-                sensor = self.layout.components.get(DeviceType.SENSOR.name, {}).get(step.device_id)
-                if sensor is not None:
-                    latch = sensor.watch(target_value)
-            try:
+            # The latch catches a target value that is reached and left again between two polls
+            with self.layout.watch(device_type, step.device_id, target_value) as latch:
                 while not self._stop_requested and not target_reached:
                     self._check_deadlines()
                     ok, msg = self.layout.command(message)
@@ -190,13 +185,8 @@ class ScenarioRunner:
                     actual_value = int(msg)
                     if actual_value == target_value:
                         target_reached = True
-                    elif latch is not None:
-                        target_reached = latch.wait(0.05)
                     else:
-                        time.sleep(0.05)
-            finally:
-                if sensor is not None:
-                    sensor.unwatch(latch)
+                        target_reached = latch.wait(0.05)
             if self._stop_requested:
                 raise InterruptedError("Scenario stopped")
             return

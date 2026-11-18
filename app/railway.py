@@ -1,7 +1,8 @@
+from contextlib import contextmanager
 from threading import Event, Lock
 from time import monotonic, sleep
 from pydantic import BaseModel
-from typing import Callable, List, Tuple, Protocol, overload
+from typing import Callable, Generator, List, Tuple, Protocol, overload
 from enum import Enum
 from communication import Communicator
 from layout import derive_blocks, validate_layout
@@ -59,6 +60,8 @@ class Layout:
         self.description = ""
         self._listeners: List[Callback] = []
         self._speed_trap_listeners: List[Callback] = []
+        self._watchers: List[Tuple[DeviceType, int, int, Event]] = []
+        self._watchers_lock = Lock()
         self.segments: dict[int, dict] = {}
         self._node_segments: dict[int, list[int]] = {}
         self._segment_nodes: dict[int, tuple[int, int]] = {}
@@ -172,6 +175,48 @@ class Layout:
     def add_listener(self, cb: Callback):
         """Add a listener to layout component events"""
         self._listeners.append(cb)
+
+    @contextmanager
+    def watch(self, device_type: DeviceType, device_id: int, target_value: int) -> Generator[Event]:
+        """Yields an event that is latched when the device changes to target_value,
+           even if it changes away again before the caller looks at it.
+        """
+        event = Event()
+        watcher = (self._canonical_device_type(device_type), device_id, target_value, event)
+        with self._watchers_lock:
+            self._watchers.append(watcher)
+        try:
+            yield event
+        finally:
+            with self._watchers_lock:
+                self._watchers.remove(watcher)
+
+    @staticmethod
+    def _canonical_device_type(device_type: DeviceType) -> DeviceType:
+        if device_type == DeviceType.POINT_DIRECTION_SKIP_CHECK:
+            return DeviceType.POINT_DIRECTION
+        return device_type
+
+    def _latch_watchers(self, message: Message):
+        """Sets the event of every watcher whose device now holds its target value"""
+        device_type = self._canonical_device_type(message.device_type)
+        with self._watchers_lock:
+            candidates = [watcher for watcher in self._watchers
+                          if watcher[0] == device_type and watcher[1] == message.device_id]
+        if not candidates:
+            return
+        ok, msg = self.command(Message(
+            message_type=MessageType.QUERY,
+            device_type=device_type,
+            device_id=message.device_id,
+            value=0
+        ))
+        if not ok:
+            return
+        current = int(msg)
+        for _, _, target_value, event in candidates:
+            if target_value == current:
+                event.set()
 
     @property
     def insulated_joint_nodes(self) -> set[int]:
@@ -328,6 +373,13 @@ class Layout:
                 ok, msg = self._send_message(message)
                 if not ok:
                     return False, msg
+
+        if message.message_type == MessageType.SET:
+            try:
+                self._latch_watchers(message)
+            except Exception as exc:
+                print("Layout._on_component_event latch exception:")
+                print(str(exc))
 
         for cb in list(self._listeners):
             try:
@@ -513,29 +565,10 @@ class Sensor:
         self.node = node
         self._on: bool = False
         self.ON_THRESHOLD = 1
-        self._watchers: List[Tuple[int, Event]] = []
-        self._watchers_lock = Lock()
 
     @property
     def on(self):
         return self._on
-
-    def watch(self, target_value: int) -> Event:
-        """Returns an event that is latched when the sensor changes to target_value, even if it changes back right away"""
-        event = Event()
-        with self._watchers_lock:
-            self._watchers.append((target_value, event))
-        return event
-
-    def unwatch(self, event: Event):
-        with self._watchers_lock:
-            self._watchers = [watcher for watcher in self._watchers if watcher[1] is not event]
-
-    def _latch_watchers(self):
-        with self._watchers_lock:
-            for target_value, event in self._watchers:
-                if target_value == int(self._on):
-                    event.set()
 
     def process_message(self, message: Message) -> Tuple[bool, str]:
         if message.message_type == MessageType.SET and message.device_type == DeviceType.SENSOR:
@@ -543,13 +576,11 @@ class Sensor:
                 if self._on:
                     return False, f"Sensonf {self.id} is already on"
                 self._on = True
-                self._latch_watchers()
                 return self._cb(message)
             else:
                 if not self._on:
                     return False, f"Sensor {self.id} is lready off"
                 self._on = False
-                self._latch_watchers()
                 return self._cb(message)
         elif message.message_type == MessageType.QUERY and message.device_type == DeviceType.SENSOR:
             return True, int(self.on)
