@@ -304,19 +304,42 @@ def test_speed_trap_resets_when_directions_differ():
     sensor_on(1)
     time.sleep(0.01)
     direction[0] = -1
-    sensor_on(2)
+    sensor_on(1)
     assert trap.last_speed == 0
     assert not readings
 
-    # the trap was reset, so a lone second sensor event gives no reading either
-    sensor_on(2)
+    # the trap was reset, so a repeated end sensor event gives no reading either
+    sensor_on(1)
     assert not readings
 
+    direction[0] = 1
     sensor_on(1)
     time.sleep(0.01)
     sensor_on(2)
     assert trap.last_speed > 0
     assert len(readings) == 1
+
+
+def test_speed_trap_reverse_direction_measures_sensor_2_to_1():
+    direction = [-1]
+    readings = []
+    trap = SpeedTrap(id=1, track_id=1, sensor_1_id=1, sensor_2_id=2, distance=10,
+                     cb=lambda message: readings.append(message), direction_provider=lambda: direction[0])
+
+    def sensor_on(sensor_id):
+        trap.receive_component_event("component", Message(
+            message_type=MessageType.SET, device_type=DeviceType.SENSOR, device_id=sensor_id, value=1))
+
+    # sensor 1 first is not a complete pass in reverse
+    sensor_on(1)
+    assert not readings
+
+    sensor_on(2)
+    time.sleep(0.01)
+    sensor_on(1)
+    assert trap.last_speed > 0
+    assert len(readings) == 1
+    assert trap.last_speed_direction == -1
 
 
 def test_speed_trap_reports_scaled_kmh():

@@ -603,10 +603,11 @@ class SpeedTrap:
         self._sensor_2_id = sensor_2_id
         self._distance = distance
         self._cb = cb
-        self._last_sensor_1_event_time = -1
-        self._last_sensor_2_event_time = -1
-        self._last_sensor_1_direction = 0
+        # Time and direction of the last event on the sensor the train passes first
+        self._start_event_time = -1
+        self._start_direction = 0
         self._last_speed = 0
+        self._last_speed_direction = 0
 
     def process_message(self, message: Message) -> Tuple[bool, str]:
         if message.message_type == MessageType.QUERY:
@@ -617,6 +618,11 @@ class SpeedTrap:
     @property
     def last_speed(self):
         return self._last_speed
+
+    @property
+    def last_speed_direction(self):
+        """Direction of travel of the last measured speed: 1 (sensor 1 to 2), -1 (sensor 2 to 1), or 0 if none"""
+        return self._last_speed_direction
 
     @property
     def sensor_1_id(self):
@@ -637,16 +643,20 @@ class SpeedTrap:
         if message.device_type == DeviceType.SENSOR and message.message_type == MessageType.SET and message.value == 1:
             event_time = int(monotonic() * 1000)
             direction = self._direction_provider()
-            if message.device_id == self._sensor_2_id:
-                self._last_sensor_2_event_time = event_time
-                if self._last_sensor_1_event_time > 0 and direction != self._last_sensor_1_direction:
+            # Forward travel passes sensor 1 then sensor 2; reverse travel passes sensor 2 then sensor 1
+            if direction < 0:
+                start_id, end_id = self._sensor_2_id, self._sensor_1_id
+            else:
+                start_id, end_id = self._sensor_1_id, self._sensor_2_id
+            if message.device_id == end_id and self._start_event_time > 0:
+                if direction != self._start_direction:
                     # Sensors were passed in different directions: reset the trap
-                    self._last_sensor_1_event_time = -1
-                    self._last_sensor_2_event_time = -1
-                elif self._last_sensor_1_event_time > 0:
-                    elapsed_time = self._last_sensor_2_event_time - self._last_sensor_1_event_time
+                    self._start_event_time = -1
+                else:
+                    elapsed_time = event_time - self._start_event_time
                     units_per_second = (self._distance / elapsed_time) * 1000
                     self._last_speed = units_per_second * self._scale * self.KMH_PER_UNIT_PER_SECOND
+                    self._last_speed_direction = -1 if direction < 0 else 1
                     cb_message = Message(
                         message_type=MessageType.SET,
                         device_type=DeviceType.SPEED,
@@ -654,9 +664,9 @@ class SpeedTrap:
                         value=self._last_speed
                     )
                     self._cb(cb_message)
-            if message.device_id == self._sensor_1_id:
-                self._last_sensor_1_event_time = event_time
-                self._last_sensor_1_direction = direction
+            if message.device_id == start_id:
+                self._start_event_time = event_time
+                self._start_direction = direction
 
 
 class Point:

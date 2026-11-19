@@ -79,10 +79,12 @@ class SpeedDisplay:
     track_id: int
     last_speed: tk.DoubleVar
     speed_label: ttk.Label
+    sensors_label: tk.StringVar
 
     def __init__(self, speed_trap_id: int):
         self.speed_trap_id = speed_trap_id
         self.last_speed = tk.DoubleVar(value=0)
+        self.sensors_label = tk.StringVar()
 
 
 class TrackControl:
@@ -463,7 +465,18 @@ class TrainController:
         speed_display.speed_label.grid(row=0, column=0)
         ttk.Label(dash_frame, text="km/h", width=5,
                   justify=tk.LEFT).grid(row=1, column=0)
+        ttk.Label(dash_frame, textvariable=speed_display.sensors_label,
+                  justify=tk.CENTER).grid(row=2, column=0)
         self.speed_displays[speed_trap_id] = speed_display
+        self._update_speed_sensors_label(speed_trap_id)
+
+    def _update_speed_sensors_label(self, speed_trap_id: int):
+        speed_display = self.speed_displays.get(speed_trap_id)
+        speed_trap = self.layout.components.get(DeviceType.SPEED.name, {}).get(speed_trap_id)
+        if speed_display is None or speed_trap is None:
+            return
+        arrow = "←" if speed_trap.last_speed_direction < 0 else "→"
+        speed_display.sensors_label.set(f"S{speed_trap.sensor_1_id} {arrow} S{speed_trap.sensor_2_id}")
 
     def _build_control_ui(self, track_id: int):
         DASH_FONT = tkFont.Font(family="Menlo", size=30)
@@ -970,6 +983,7 @@ class TrainController:
             speed_display = self.speed_displays.get(message.device_id)
             if not speed_display is None:
                 speed_display.last_speed.set(float(message.value))
+                self._update_speed_sensors_label(message.device_id)
         elif message.device_type == DeviceType.BLOCK:
             self._update_block_diagram(message.device_id)
         elif message.device_type == DeviceType.SENSOR:
