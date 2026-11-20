@@ -88,6 +88,7 @@ def test_get_layout_describes_definition_and_derived_blocks(service):
     assert layout["points"][0]["direction_segments"] == [2, 4]
     assert {block["id"] for block in layout["blocks"]} == {1, 3}
     assert next(block for block in layout["blocks"] if block["id"] == 1)["sensor_ids"] == [1]
+    assert "track_id" not in layout["speed_traps"][0]
 
 
 def test_layout_state_reports_every_device_type(service):
@@ -97,6 +98,7 @@ def test_layout_state_reports_every_device_type(service):
     assert state["points"][0]["direction_name"] == "PRIMARY"
     assert {block["id"]: block["occupied"] for block in state["blocks"]} == {1: False, 3: True}
     assert state["sensors"][0]["on"] is False
+    assert "track_id" not in state["speed_traps"][0]
     assert state["speed_traps"][0]["last_speed_kmh"] == 0
     assert state["scenario"]["loaded"] is False
 

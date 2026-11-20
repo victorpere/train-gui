@@ -102,7 +102,7 @@ def validate_layout(layout_data: dict) -> list[str]:
         else:
             errors.append(f"{where}: shape must be straight or curve, found {shape}")
 
-    track_ids = collect_ids("tracks", layout_data.get("tracks", []))
+    collect_ids("tracks", layout_data.get("tracks", []))
     collect_ids("blocks", layout_data.get("blocks", []))
     sensor_ids = collect_ids("sensors", layout_data.get("sensors", []))
     collect_ids("speed_traps", layout_data.get("speed_traps", []))
@@ -170,8 +170,6 @@ def validate_layout(layout_data: dict) -> list[str]:
 
     for trap in layout_data.get("speed_traps", []):
         where = f"speed trap {trap.get('id')}"
-        if trap.get("track_id") not in track_ids:
-            errors.append(f"{where}: unknown track {trap.get('track_id')}")
         for key in ("sensor_1_id", "sensor_2_id"):
             if trap.get(key) not in sensor_ids:
                 errors.append(f"{where}: unknown sensor {trap.get(key)} in {key}")

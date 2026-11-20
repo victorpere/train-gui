@@ -19,14 +19,12 @@ def test_validate_layout_reports_problems():
     bad = copy.deepcopy(layout_data)
     bad["sensors"].append({"id": 1})
     bad["speed_traps"][0]["sensor_2_id"] = 99
-    bad["speed_traps"][0]["track_id"] = 42
     bad["points"][0]["direction_segments"] = [2, 77]
     bad["tracks"][0]["feeder_segment_id"] = 55
 
     errors = validate_layout(bad)
     assert "sensors: duplicate id 1" in errors
     assert any("unknown sensor 99" in e for e in errors)
-    assert any("unknown track 42" in e for e in errors)
     assert any("unknown segment 77" in e for e in errors)
     assert any("unknown feeder segment 55" in e for e in errors)
 

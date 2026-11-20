@@ -112,13 +112,14 @@ class Layout:
 
             for speed_trap_data in speed_traps:
                 speed_trap = SpeedTrap(id=speed_trap_data.get("id"),
-                                       track_id=speed_trap_data.get("track_id"),
                                        sensor_1_id=speed_trap_data.get("sensor_1_id"),
                                        sensor_2_id=speed_trap_data.get("sensor_2_id"),
                                        distance=speed_trap_data.get("distance"),
                                        scale=self.scale,
                                        cb=self._on_component_event,
-                                       direction_provider=self._track_direction_provider(speed_trap_data.get("track_id")))
+                                       direction_provider=self._speed_trap_direction_provider(
+                                           speed_trap_data.get("sensor_1_id"),
+                                           speed_trap_data.get("sensor_2_id")))
                 self.add_listener(speed_trap.receive_component_event)
                 self._speed_trap_listeners.append(speed_trap.receive_component_event)
                 self.components[DeviceType.SPEED.name][speed_trap.id] = speed_trap
@@ -166,10 +167,27 @@ class Layout:
             print(f"Failed to load layout {str(exc)}")
             return False, str(exc)
 
-    def _track_direction_provider(self, track_id: int) -> Callable[[], int]:
+    def _speed_trap_direction_provider(self, sensor_1_id: int, sensor_2_id: int) -> Callable[[], int]:
         def direction() -> int:
-            track = self.components[DeviceType.TARGET_VOLTAGE.name].get(track_id)
-            return track.travel_direction if track else 0
+            sensors: dict[int, Sensor] = self.components[DeviceType.SENSOR.name]
+            first = sensors.get(sensor_1_id)
+            second = sensors.get(sensor_2_id)
+            if first is None or second is None:
+                return 0
+
+            directions = set()
+            for track_id, segment_ids in self.electrified_segments().items():
+                if first.node not in {
+                        node for segment_id in segment_ids for node in self._segment_nodes[segment_id]}:
+                    continue
+                if second.node not in {
+                        node for segment_id in segment_ids for node in self._segment_nodes[segment_id]}:
+                    continue
+                travel_direction = self.components[DeviceType.TARGET_VOLTAGE.name][track_id].travel_direction
+                if travel_direction:
+                    directions.add(travel_direction)
+            return directions.pop() if len(directions) == 1 else 0
+
         return direction
 
     def add_listener(self, cb: Callback):
@@ -592,18 +610,15 @@ class SpeedTrap:
     # distance is in layout units (mm); km/h = units/s * 0.0036 * scale
     KMH_PER_UNIT_PER_SECOND = 0.0036
 
-    def __init__(self, id: int, track_id: int, sensor_1_id: int, sensor_2_id: int, distance: float, cb: Callback,
+    def __init__(self, id: int, sensor_1_id: int, sensor_2_id: int, distance: float, cb: Callback,
                  direction_provider: Callable[[], int] = lambda: 0, scale: float = 1):
         self.id = id
         self._scale = scale
-        self.track_id = track_id
-        # Direction of travel (1, -1, or 0 if unknown) at the time of a sensor event
         self._direction_provider = direction_provider
         self._sensor_1_id = sensor_1_id
         self._sensor_2_id = sensor_2_id
         self._distance = distance
         self._cb = cb
-        # Time and direction of the last event on the sensor the train passes first
         self._start_event_time = -1
         self._start_direction = 0
         self._last_speed = 0
@@ -643,27 +658,26 @@ class SpeedTrap:
         if message.device_type == DeviceType.SENSOR and message.message_type == MessageType.SET and message.value == 1:
             event_time = int(monotonic() * 1000)
             direction = self._direction_provider()
-            # Forward travel passes sensor 1 then sensor 2; reverse travel passes sensor 2 then sensor 1
             if direction < 0:
                 start_id, end_id = self._sensor_2_id, self._sensor_1_id
             else:
                 start_id, end_id = self._sensor_1_id, self._sensor_2_id
+
             if message.device_id == end_id and self._start_event_time > 0:
                 if direction != self._start_direction:
-                    # Sensors were passed in different directions: reset the trap
                     self._start_event_time = -1
                 else:
                     elapsed_time = event_time - self._start_event_time
-                    units_per_second = (self._distance / elapsed_time) * 1000
-                    self._last_speed = units_per_second * self._scale * self.KMH_PER_UNIT_PER_SECOND
-                    self._last_speed_direction = -1 if direction < 0 else 1
-                    cb_message = Message(
-                        message_type=MessageType.SET,
-                        device_type=DeviceType.SPEED,
-                        device_id=self.id,
-                        value=self._last_speed
-                    )
-                    self._cb(cb_message)
+                    if elapsed_time > 0:
+                        units_per_second = (self._distance / elapsed_time) * 1000
+                        self._last_speed = units_per_second * self._scale * self.KMH_PER_UNIT_PER_SECOND
+                        self._last_speed_direction = -1 if direction < 0 else 1
+                        self._cb(Message(
+                            message_type=MessageType.SET,
+                            device_type=DeviceType.SPEED,
+                            device_id=self.id,
+                            value=self._last_speed
+                        ))
             if message.device_id == start_id:
                 self._start_event_time = event_time
                 self._start_direction = direction

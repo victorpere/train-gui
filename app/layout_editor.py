@@ -71,6 +71,8 @@ class LayoutDocument:
         for key, empty in new_layout().items():
             if self.data.get(key) is None:
                 self.data[key] = empty
+        for trap in self.data["speed_traps"]:
+            trap.pop("track_id", None)
 
     def problems(self) -> list[str]:
         try:
@@ -323,8 +325,7 @@ class LayoutDocument:
             if track.get("feeder_segment_id") == segment_id:
                 del track["feeder_segment_id"]
 
-    def set_speed_trap(self, trap_id: int | None, track_id: int, sensor_1_id: int, sensor_2_id: int,
-                       distance: float) -> int:
+    def set_speed_trap(self, trap_id: int | None, sensor_1_id: int, sensor_2_id: int, distance: float) -> int:
         if distance <= 0:
             raise LayoutError("Distance must be positive")
         traps = self.data["speed_traps"]
@@ -332,8 +333,7 @@ class LayoutDocument:
         if trap is None:
             trap = {"id": _free_id(traps, 0, MAX_DEVICE_ID)}
             traps.append(trap)
-        trap.update({"track_id": track_id, "sensor_1_id": sensor_1_id, "sensor_2_id": sensor_2_id,
-                     "distance": distance})
+        trap.update({"sensor_1_id": sensor_1_id, "sensor_2_id": sensor_2_id, "distance": distance})
         return trap["id"]
 
     def remove_speed_trap(self, trap_id: int):
@@ -1001,7 +1001,7 @@ class LayoutEditor:
              if t.get("feeder_segment_id") is not None else f"Track {t['id']}  (no feeder)")
             for t in data["tracks"]])
         self._trap_ids = self._fill_list(self.trap_list, [
-            (t["id"], f"Trap {t['id']}: track {t.get('track_id')}, S{t.get('sensor_1_id')} to "
+            (t["id"], f"Trap {t['id']}: S{t.get('sensor_1_id')} to "
                       f"S{t.get('sensor_2_id')}, distance {t.get('distance')}")
             for t in data["speed_traps"]])
         self._block_ids = self._fill_list(self.block_list, [
@@ -1042,10 +1042,9 @@ class LayoutEditor:
         self._edit(self.doc.set_block_occupied, block_id, not summary["occupied"])
 
     def _speed_trap_dialog(self, trap_id: int | None):
-        tracks = [str(t["id"]) for t in self.doc.data["tracks"]]
         sensors = [str(s["id"]) for s in self.doc.data["sensors"]]
-        if not tracks or not sensors:
-            messagebox.showinfo("Layout editor", "Add a track and at least one sensor first.", parent=self.root)
+        if not sensors:
+            messagebox.showinfo("Layout editor", "Add at least one sensor first.", parent=self.root)
             return
         trap = _find(self.doc.data["speed_traps"], trap_id) or {}
 
@@ -1054,7 +1053,6 @@ class LayoutEditor:
             return value if value in choices else choices[0]
 
         answer = ask_form(self.root, "Speed trap", [
-            ("track", "Track", initial("track_id", tracks), tracks),
             ("sensor_1", "First sensor", initial("sensor_1_id", sensors), sensors),
             ("sensor_2", "Second sensor", initial("sensor_2_id", sensors), sensors),
             ("distance", "Distance", str(trap.get("distance", "")), None)])
@@ -1065,8 +1063,7 @@ class LayoutEditor:
         except ValueError:
             messagebox.showerror("Layout editor", "Distance must be a number", parent=self.root)
             return
-        self._edit(self.doc.set_speed_trap, trap_id, int(answer["track"]), int(answer["sensor_1"]),
-                   int(answer["sensor_2"]), distance)
+        self._edit(self.doc.set_speed_trap, trap_id, int(answer["sensor_1"]), int(answer["sensor_2"]), distance)
 
     def _apply_metadata(self):
         data = self.doc.data

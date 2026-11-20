@@ -216,14 +216,12 @@
     "speed_traps": [
         {
             "id": 0,
-            "track_id": 0,
             "sensor_1_id": 0,
             "sensor_2_id": 0,
             "distance": 2836.02
         },
         {
             "id": 1,
-            "track_id": 0,
             "sensor_1_id": 0,
             "sensor_2_id": 3,
             "distance": 860.01

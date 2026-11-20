@@ -91,8 +91,7 @@ class LayoutService:
                     "direction_name": "PRIMARY" if device.direction == 0 else "SECONDARY",
                     "direction_segments": list(device.direction_segments)}
         if kind == "speed_trap":
-            return {"id": device.id, "track_id": device.track_id,
-                    "sensor_1_id": device.sensor_1_id, "sensor_2_id": device.sensor_2_id,
+            return {"id": device.id, "sensor_1_id": device.sensor_1_id, "sensor_2_id": device.sensor_2_id,
                     "distance": device.distance, "last_speed_kmh": device.last_speed}
         raise ValueError(kind)
 
@@ -123,7 +122,9 @@ class LayoutService:
                        for b in self._devices(DeviceType.BLOCK).values()],
             "sensors": data.get("sensors", []),
             "points": data.get("points", []),
-            "speed_traps": data.get("speed_traps", []),
+            "speed_traps": [{
+                key: trap[key] for key in ("id", "sensor_1_id", "sensor_2_id", "distance") if key in trap
+            } for trap in data.get("speed_traps", [])],
         }
 
     def get_layout_state(self) -> dict:

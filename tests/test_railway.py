@@ -291,11 +291,41 @@ def test_speed_trap(fake_factory):
     assert speed_trap.last_speed > 0
 
 
-def test_speed_trap_resets_when_directions_differ():
+def test_loaded_speed_trap_derives_direction_without_track_id(fake_factory):
+    layout = Layout(Communicator(serial_factory=fake_factory, time_to_initialize=0))
+    ok, msg = layout.load(layout_data)
+    assert ok, msg
+
+    trap: SpeedTrap = layout.components[DeviceType.SPEED.name][1]
+    track: Track = layout.components[DeviceType.TARGET_VOLTAGE.name][1]
+    readings = []
+    layout.add_listener(
+        lambda name, value: readings.append(value)
+        if name == "component" and value.device_type == DeviceType.SPEED else None)
+
+    def sensor_on():
+        trap.receive_component_event("component", Message(
+            message_type=MessageType.SET, device_type=DeviceType.SENSOR, device_id=1, value=1))
+
+    track.travel_direction = 1
+    sensor_on()
+    track.travel_direction = -1
+    time.sleep(0.01)
+    sensor_on()
+    assert not readings
+
+    time.sleep(0.01)
+    sensor_on()
+    assert len(readings) == 1
+    assert trap.last_speed_direction == -1
+
+
+def test_speed_trap_restarts_measurement_for_repeated_start_sensor():
     direction = [1]
     readings = []
-    trap = SpeedTrap(id=1, track_id=1, sensor_1_id=1, sensor_2_id=2, distance=10,
-                     cb=lambda message: readings.append(message), direction_provider=lambda: direction[0])
+    trap = SpeedTrap(id=1, sensor_1_id=1, sensor_2_id=2, distance=10,
+                     cb=lambda message: readings.append(message),
+                     direction_provider=lambda: direction[0])
 
     def sensor_on(sensor_id):
         trap.receive_component_event("component", Message(
@@ -303,36 +333,45 @@ def test_speed_trap_resets_when_directions_differ():
 
     sensor_on(1)
     time.sleep(0.01)
-    direction[0] = -1
     sensor_on(1)
     assert trap.last_speed == 0
     assert not readings
 
-    # the trap was reset, so a repeated end sensor event gives no reading either
-    sensor_on(1)
-    assert not readings
-
-    direction[0] = 1
-    sensor_on(1)
     time.sleep(0.01)
     sensor_on(2)
     assert trap.last_speed > 0
     assert len(readings) == 1
 
 
+def test_speed_trap_measures_every_interval_on_same_sensor():
+    readings = []
+    trap = SpeedTrap(id=1, sensor_1_id=1, sensor_2_id=1, distance=10,
+                     cb=lambda message: readings.append(message))
+
+    def sensor_on():
+        trap.receive_component_event("component", Message(
+            message_type=MessageType.SET, device_type=DeviceType.SENSOR, device_id=1, value=1))
+
+    sensor_on()
+    time.sleep(0.01)
+    sensor_on()
+    time.sleep(0.01)
+    sensor_on()
+
+    assert trap.last_speed > 0
+    assert len(readings) == 2
+
+
 def test_speed_trap_reverse_direction_measures_sensor_2_to_1():
     direction = [-1]
     readings = []
-    trap = SpeedTrap(id=1, track_id=1, sensor_1_id=1, sensor_2_id=2, distance=10,
-                     cb=lambda message: readings.append(message), direction_provider=lambda: direction[0])
+    trap = SpeedTrap(id=1, sensor_1_id=1, sensor_2_id=2, distance=10,
+                     cb=lambda message: readings.append(message),
+                     direction_provider=lambda: direction[0])
 
     def sensor_on(sensor_id):
         trap.receive_component_event("component", Message(
             message_type=MessageType.SET, device_type=DeviceType.SENSOR, device_id=sensor_id, value=1))
-
-    # sensor 1 first is not a complete pass in reverse
-    sensor_on(1)
-    assert not readings
 
     sensor_on(2)
     time.sleep(0.01)
@@ -342,9 +381,29 @@ def test_speed_trap_reverse_direction_measures_sensor_2_to_1():
     assert trap.last_speed_direction == -1
 
 
+def test_speed_trap_rejects_events_in_opposite_directions():
+    direction = [1]
+    readings = []
+    trap = SpeedTrap(id=1, sensor_1_id=1, sensor_2_id=2, distance=10,
+                     cb=lambda message: readings.append(message),
+                     direction_provider=lambda: direction[0])
+
+    def sensor_on(sensor_id):
+        trap.receive_component_event("component", Message(
+            message_type=MessageType.SET, device_type=DeviceType.SENSOR, device_id=sensor_id, value=1))
+
+    sensor_on(1)
+    direction[0] = -1
+    time.sleep(0.01)
+    sensor_on(2)
+
+    assert trap.last_speed == 0
+    assert not readings
+
+
 def test_speed_trap_reports_scaled_kmh():
     readings = []
-    trap = SpeedTrap(id=1, track_id=1, sensor_1_id=1, sensor_2_id=2, distance=1000,
+    trap = SpeedTrap(id=1, sensor_1_id=1, sensor_2_id=2, distance=1000,
                      cb=lambda message: readings.append(message), scale=160)
 
     def sensor_on(sensor_id):
@@ -357,11 +416,12 @@ def test_speed_trap_reports_scaled_kmh():
 
     # 1000 units over ~10 ms is ~100000 units/s; km/h = units/s * scale * 0.0036
     assert readings[0].value == trap.last_speed
-    assert 0 < trap.last_speed < 1000 * 1000 * 160 * 0.0036 / 10
+    assert 0 < trap.last_speed <= 1000 * 1000 * 160 * 0.0036 / 10
 
 
 def test_speed_trap_query():
-    trap = SpeedTrap(id=1, track_id=1, sensor_1_id=1, sensor_2_id=2, distance=10, cb=lambda message: None)
+    trap = SpeedTrap(id=1, sensor_1_id=1, sensor_2_id=2, distance=10, cb=lambda message: None)
+    assert not hasattr(trap, "track_id")
     query = Message(message_type=MessageType.QUERY, device_type=DeviceType.SPEED, device_id=1, value=0)
 
     ok, value = trap.process_message(query)

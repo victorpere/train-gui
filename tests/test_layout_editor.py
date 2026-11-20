@@ -26,6 +26,14 @@ def test_bundled_layouts_open_without_problems(path):
     assert doc.problems() == []
 
 
+def test_legacy_speed_trap_track_id_is_removed():
+    data = load_data_from_file("tests/data/test_layout01.json")
+    data["speed_traps"][0]["track_id"] = 1
+    doc = LayoutDocument(data)
+
+    assert "track_id" not in doc.data["speed_traps"][0]
+
+
 def test_drawing_a_loop_reuses_nodes_and_validates():
     doc = LayoutDocument()
     doc.add_segment((100, 100), (300, 100))
@@ -70,12 +78,12 @@ def test_sensor_id_can_be_assigned_manually():
     first, second = doc.node_at((300, 100)), doc.node_at((200, 100))
     doc.add_sensor(first)
     doc.add_sensor(second)
-    track_id = doc.add_track()
-    doc.set_speed_trap(None, track_id, 0, 1, 50)
+    doc.set_speed_trap(None, 0, 1, 50)
 
     doc.set_sensor_id(first, 7)
     assert doc.sensor_at(first) == 7
     assert doc.data["speed_traps"][0]["sensor_1_id"] == 7
+    assert "track_id" not in doc.data["speed_traps"][0]
 
     with pytest.raises(LayoutError):
         doc.set_sensor_id(first, 1)  # used by the other sensor
