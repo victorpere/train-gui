@@ -734,7 +734,7 @@ class TrainController:
             self.scenario_name.set(scenario.name)
             self.scenario_description.set(scenario.description)
             self.scenario_iteration.set("")
-            self._populate_steps_table(scenario.steps)
+            self._populate_steps_table(scenario.steps, scenario.routines)
             self.scenario_times.set(scenario.times)
             self.set_message(
                 "info", f"Scenario loaded: {data.get('name', self.scenario_runner.scenario.name)}")
@@ -755,10 +755,11 @@ class TrainController:
         if self.scenario_runner and self.scenario_runner.scenario:
             self.scenario_runner.scenario.times = self.scenario_times.get()
 
-    def _populate_steps_table(self, steps):
+    def _populate_steps_table(self, steps, routines=()):
         self.steps_table.delete(*self.steps_table.get_children())
         self._highlighted_step_iid = None
         self._step_iids = {}
+        self._routines = {routine.id: routine for routine in routines}
         self._insert_steps("", "", steps)
 
     def _insert_steps(self, parent_iid, parent_number, steps):
@@ -781,9 +782,12 @@ class TrainController:
                 "" if step.device_id is None else step.device_id,
                 step.value))
             # Steps can be textually identical, so key on object identity.
-            self._step_iids[id(step)] = number
+            self._step_iids.setdefault(id(step), number)
             if step.steps:
                 self._insert_steps(number, number, step.steps)
+            elif step.action == "ROUTINE":
+                # Scenario validation guarantees the routine exists and is not recursive.
+                self._insert_steps(number, number, self._routines[step.value].steps)
 
     def _highlight_step(self, step):
         if self._highlighted_step_iid is not None:

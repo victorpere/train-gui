@@ -14,6 +14,7 @@ class ScenarioAction(Enum):
     DEVICE_ADJUST = 3
     DEVICE_CONDITION = 4
     LOOP = 5
+    ROUTINE = 6
 
 
 CONDITION_OPERATORS = {
@@ -82,11 +83,58 @@ class ScenarioStep(BaseModel):
         return f"{self.action}:{self.device_type or ""}:{"" if self.device_id is None else self.device_id}:{self.value}"
 
 
+class Routine(BaseModel):
+    id: int
+    steps: List[ScenarioStep]
+
+
+def _routine_references(steps: List[ScenarioStep]) -> List[int]:
+    """IDs of all routines called by the steps, including nested steps."""
+    ids = []
+    for step in steps:
+        if step.action == ScenarioAction.ROUTINE.name:
+            ids.append(step.value)
+        if step.steps:
+            ids.extend(_routine_references(step.steps))
+    return ids
+
+
 class Scenario(BaseModel):
     name: str
     description: str
     times: int
+    routines: List[Routine] = []
     steps: List[ScenarioStep]
+
+    @model_validator(mode="after")
+    def _validate_routines(self):
+        graph = {}
+        for routine in self.routines:
+            if routine.id in graph:
+                raise ValueError(f"Duplicate routine ID {routine.id}")
+            graph[routine.id] = _routine_references(routine.steps)
+        for caller, references in [("Scenario", _routine_references(self.steps)), *graph.items()]:
+            for reference in references:
+                if reference not in graph:
+                    owner = caller if caller == "Scenario" else f"Routine {caller}"
+                    raise ValueError(f"{owner} calls unknown routine ID {reference}")
+
+        visiting, done = set(), set()
+
+        def visit(routine_id: int):
+            if routine_id in done:
+                return
+            if routine_id in visiting:
+                raise ValueError(f"Routine {routine_id} calls itself recursively")
+            visiting.add(routine_id)
+            for reference in graph[routine_id]:
+                visit(reference)
+            visiting.discard(routine_id)
+            done.add(routine_id)
+
+        for routine_id in graph:
+            visit(routine_id)
+        return self
 
 
 class ScenarioStatus(Enum):
@@ -258,6 +306,15 @@ class ScenarioRunner:
             finally:
                 if deadline is not None:
                     self._deadlines.pop()
+            return
+
+        if step.action == ScenarioAction.ROUTINE.name:
+            routine = next(r for r in self.scenario.routines if r.id == step.value)
+            for nested_step in routine.steps:
+                if self._stop_requested:
+                    raise InterruptedError("Scenario stopped")
+                self._check_deadlines()
+                self._run_step(nested_step)
             return
 
         print("Unsupported step")

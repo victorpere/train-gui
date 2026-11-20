@@ -301,6 +301,49 @@ def test_loop_requires_times_or_duration_and_steps():
         assert not ok
 
 
+def _routine_runner(scenario_extra):
+    communicator = Communicator(serial_factory=factory, time_to_initialize=0)
+    layout = Layout(communicator)
+    layout.load(layout_data)
+    communicator.connect("/dev/fake")
+    runner = ScenarioRunner(layout)
+    ok, msg = runner.load_scenario({"name": "routine", "description": "routine", "times": 1, **scenario_extra})
+    return runner, ok, msg, layout
+
+
+def test_routine_executes_its_steps():
+    runner, ok, msg, layout = _routine_runner({
+        "routines": [{"id": 0, "steps": ["DEVICE_SET:TARGET_VOLTAGE:1:100", "DEVICE_ADJUST:TARGET_VOLTAGE:1:-5"]},
+                     {"id": 1, "steps": ["ROUTINE:::0"]}],
+        "steps": ["ROUTINE:::1", "ROUTINE:::0"]})
+    assert ok, msg
+    sets = []
+    original_command = layout.command
+
+    def recording_command(message):
+        if message.message_type == MessageType.SET:
+            sets.append(message.value)
+        return original_command(message)
+
+    layout.command = recording_command
+    assert runner.run()
+    assert sets == [100, 95, 100, 95]
+
+
+def test_routine_validation():
+    cases = [
+        {"routines": [], "steps": ["ROUTINE:::0"]},
+        {"routines": [{"id": 0, "steps": ["TIME_WAIT:::1"]}, {"id": 0, "steps": ["TIME_WAIT:::1"]}],
+         "steps": ["ROUTINE:::0"]},
+        {"routines": [{"id": 0, "steps": ["ROUTINE:::1"]}, {"id": 1, "steps": ["ROUTINE:::0"]}],
+         "steps": ["ROUTINE:::0"]},
+        {"routines": [{"id": 0, "steps": ["ROUTINE:::5"]}], "steps": ["ROUTINE:::0"]},
+    ]
+    for case in cases:
+        _, ok, _, _ = _routine_runner(case)
+        assert not ok
+
+
 @pytest.mark.parametrize("device_type,step,away,target", [
     (DeviceType.SENSOR, "DEVICE_WAIT:SENSOR:1:1", 0, 1),
     (DeviceType.POINT_DIRECTION, "DEVICE_WAIT:POINT_DIRECTION:1:1", 0, 1),
